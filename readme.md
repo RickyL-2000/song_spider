@@ -33,18 +33,23 @@
 * sample.json - 从总数据集中抽样13条的数据，用于方便查看数据的结构
 * scripts - python脚本
     * extraction.py - 用于提取歌曲名称、演唱者、歌词等
-    * audio_process.py - 用于处理音频
+    * distance.py - 用于计算乐谱的频率序列和音频的f0序列的相似度
+    * crawler_9ku.py - 用于爬取音频
+    * lyrics_match.py - 用于实现秒级别的乐句对齐
 * raw_data - 存放未经处理的文本数据
     * raw_titles.txt - 所有歌曲的名称，未人工处理，有些是数字代号，有些是乱码
     * raw_singers.txt - 所有歌曲的演唱者
     * raw_lyrics.txt - 所有歌曲的歌词
 * helpers
     * digits_titles.txt - 记录了所有title是一串数字的歌曲在raw_titles.txt中的行号
+    * crawler_log.csv - 记录了有哪些音频已经成功下载
 * audios - 存放所有音频文件
     * separate - 存放用spleeter输出的vocal和bgm
-        * - 命令：spleeter separate -i "E:\song_spider\audios\raw_audios\18291.mp3" -o ..\audios\separate\
+        * -- 命令：spleeter separate -i "E:\song_spider\audios\raw_audios\18291.mp3" -o ..\audios\separate\
     * raw_audios - 存放所有未经处理的音频文件
-        * -
-* processed_data - 存放人工处理后的文本数据
+        * --
+* processed_data - 存放处理后的文本数据
+    * lrc - 存放所有音频所对应的lrc歌词
+        * --
     * titles.txt
     * singers.txt
