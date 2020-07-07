@@ -90,7 +90,7 @@ class Crawler_9ku:
     def get_audio(self, html, title):
         """
         Download the target audio
-        :return: True if success, False if failed
+        :return: None
         """
         soup = bs4(html, 'html.parser')
         player = soup.find('div', id="ku-player")   # FIXME: 这个id为什么找不到？
@@ -112,7 +112,28 @@ class Crawler_9ku:
         Download the qrc or lrc lyrics with time stamps.
         One song a file separately.
         """
-        pass
+        soup = bs4(html, 'html.parser')
+        lyrics_box = soup.find('textarea', id='lrc_content')
+        raw_lyrics = lyrics_box.string
+        lyrics_list = raw_lyrics.strip().split("\r\n")
+        lrc_dict = {}
+        for lrc in lyrics_list:
+            if len(lrc) == 0 or lrc[0] != '[':
+                continue
+            if lrc[-1] == ']':
+                # if this line is ended with ']', like [ti: 七里香]，这种不是歌词
+                continue
+            lrc_word = lrc.replace('[', ']').strip().split(']')
+            for j in range(len(lrc_word) - 1):
+                if lrc_word[j]:  # not empty string
+                    lrc_dict[lrc_word[j]] = lrc_word[-1]  # value := lrc content
+        with open('E:/song_spider/processed_data/lrc/{}.csv'.format(18291), 'w') as f:
+            writer = csv.writer(f)
+            writer.writerow(['time', 'value'])
+            for key in sorted(lrc_dict.keys()):
+                t = key.split(':')
+                t = int(float(t[0]) * 60000 + float(t[1]) * 1000)
+                writer.writerow([t, lrc_dict[key]])
 
     def init_log(self):
         if os.path.getsize(self.base_dir + "/helpers/crawler_log.csv"):
@@ -157,6 +178,39 @@ class Crawler_9ku:
 
 # %%
 if __name__ == "__main__":
-    base_dir = r"E:/song_spider"
-    crawler = Crawler_9ku(base_dir)
-    crawler.main_audio()
+    # base_dir = r"E:/song_spider"
+    # crawler = Crawler_9ku(base_dir)
+    # crawler.main_audio()
+    pass
+
+# %%
+# trytrywater
+soup = bs4(requests.get("http://m.9ku.com/play/588534.htm").text, 'html.parser')
+
+# %%
+lyrics_box = soup.find('textarea', id='lrc_content')
+raw_lyrics = lyrics_box.string
+lyrics_list = raw_lyrics.strip().split("\r\n")
+lrc_dict = {}
+for lrc in lyrics_list:
+    if len(lrc) == 0 or lrc[0] != '[':
+        continue
+    if lrc[-1] == ']':
+        # if this line is ended with ']', like [ti: 七里香]，这种不是歌词
+        continue
+    lrc_word = lrc.replace('[', ']').strip().split(']')
+    for j in range(len(lrc_word) - 1):
+        if lrc_word[j]: # not empty string
+            lrc_dict[lrc_word[j]] = lrc_word[-1]    # value := lrc content
+with open('E:/song_spider/processed_data/lrc/{}.csv'.format(18291), 'w') as f:
+    writer = csv.writer(f)
+    writer.writerow(['time', 'value'])
+    for key in sorted(lrc_dict.keys()):
+        t = key.split(':')
+        t = int(float(t[0]) * 60000 + float(t[1]) * 1000)
+        writer.writerow([t, lrc_dict[key]])
+
+# %%
+str = "[1234]"
+l = str.replace('[', ']').strip().split(']')
+
