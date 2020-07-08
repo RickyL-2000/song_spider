@@ -9,7 +9,7 @@ import json
 class LyricsMatch:
     """
     秒级别进行乐句对齐
-    1. 遍历lrc歌词中的每一句，在qrc歌词中找到匹配段，通过 difflib
+    1. 遍历qrc歌词中的每一句，在lrc歌词中找到匹配段，通过 difflib
     2. 以200ms的阈值定位该句的pitch
     3. 通过lrc歌词中的时间戳来拉伸qrc歌词中的时间戳
        拉伸方法：定位要拉伸的句子之后，将该句子的大致时间段抽出，并用该时间段定位要拉伸的乐谱的乐句，然后同时拉伸。
@@ -114,23 +114,36 @@ class LyricsMatch:
         def str_similarity(str1, str2):
             return difflib.SequenceMatcher(None, str1, str2).quick_ratio()
 
-        def find_match_sentence(self, idx, start) -> int:
+        def find_match_sentence(self, idx, qrc_found, lrc_visited) -> int:
             """
-            输入一句lrc歌词，在qrc歌词中找到匹配的一段，返回匹配段的位置(索引)
-            :param idx: 输入的lrc的索引
-            :param start:
-            :return:
+            输入一句qrc歌词，在lrc歌词中找到匹配的一段，返回匹配段的位置(索引)
+            :param idx: 输入的qrc歌词的索引
+            :param qrc_found: helper
+            :param lrc_visited: helper
+            :return: 对应的
             """
-            # 搜索范围包括start，从start开始
-            pass
+            score = []
+            for j in range(len(self.lrc)):
+                if lrc_visited[j]:
+                    score.append(0.0)
+                    continue
+                score.append(self.str_similarity(self.raw_qrc[idx][2], self.lrc[idx][1]))
+            # 找出最相近的
+            maxscore = 0.0
+            for j in range(len(score)):
+                if score[j] > maxscore:
+                    maxscore = score[j]
+                    pos = j
+            return pos
 
         def main(self):
             start = 0
-            qrc_visited = [False] * len(self.raw_qrc)
-
-            for idx in len(self.lrc):
-                position = self.find_match_sentence(idx, start)
-                target_pitch = self.group_pitch[position]
+            qrc_found = [False] * len(self.raw_qrc)
+            lrc_visited = [False] * len(self.lrc)
+            for idx in range(len(self.raw_qrc)):
+                position = self.find_match_sentence(idx, qrc_found, lrc_visited)
+                matched_lrc = self.lrc[position]
+                target_pitch = self.group_pitch[idx]
                 # TODO: 接下来是第三步
 
     def __init__(self, base_dir):
