@@ -6,19 +6,13 @@ import json
 
 
 # %%
-# difflib trytrywater
-def get_equal_rate_1(str1, str2):
-    return difflib.SequenceMatcher(None, str1, str2).quick_ratio()
-
-
-# %%
 class LyricsMatch:
     """
     秒级别进行乐句对齐
     1. 遍历lrc歌词中的每一句，在qrc歌词中找到匹配段，通过 difflib
     2. 以200ms的阈值定位该句的pitch
     3. 通过lrc歌词中的时间戳来拉伸qrc歌词中的时间戳
-        拉伸方法：定位要拉伸的句子之后，将该句子的大致时间段抽出，并用该时间段定位要拉伸的乐谱的乐句，然后同时拉伸。
+       拉伸方法：定位要拉伸的句子之后，将该句子的大致时间段抽出，并用该时间段定位要拉伸的乐谱的乐句，然后同时拉伸。
                 与此同时，要记录被修改过的pitch的日志，需要在最后遍历一遍把遗漏的未修改过的pitch进行平均拟合。
                 因为note和歌词并不能对齐
     """
@@ -26,12 +20,16 @@ class LyricsMatch:
         def __init__(self, number, base_dir):
             self.number = number
             self.base_dir = base_dir
-            self.lrc = []       # 这是和audio相匹配的歌词
-            self.raw_qrc = []   # 这是数据集里自带的歌词，与audio不一定匹配
-                                # 元素格式：[[总时间戳], [时间戳序列], 歌词字符串]
-            self.raw_pitch = [] # 这是数据集里自带的乐谱
-            self.qrc = []       # 这是处理拉伸后的歌词，与audio匹配
-            self.pitch = []     # 这是处理拉伸后的乐谱
+            self.lrc = []           # 这是和audio相匹配的歌词
+                                    # 元素格式：[时间，歌词字符串]
+            self.raw_qrc = []       # 这是数据集里自带的歌词，与audio不一定匹配，按句分
+                                    # 元素格式：[[总时间戳], [时间戳序列], 歌词字符串]
+            self.raw_pitch = []     # 这是数据集里自带的乐谱
+                                    # 元素格式：[开始时间，持续时间，音高]
+            self.group_pitch = []   # 经过按照qrc乐句分组之后的group
+                                    # 元素格式：[按照乐句分组的一句pitch]
+            self.qrc = []           # 这是处理拉伸后的歌词，与audio匹配
+            self.pitch = []         # 这是处理拉伸后的乐谱
 
         def load_lrc(self):
             with open(self.base_dir + "/processed_data/lrc/{}.csv".format(self.number), 'r') as f:
@@ -40,8 +38,7 @@ class LyricsMatch:
                     self.lrc.append([item['time'], item['value']])
 
         def load_raw_qrc(self):
-            raw_qrc = []
-            with open(self.base_dir + "/raw_data/alldata/{}.json".format(self.number), 'r') as f:
+            with open(self.base_dir + "/raw_data/alldata/{}.json".format(self.number), 'r', encoding='utf-8') as f:
                 data = f.readline()
                 json_data = json.loads(data)
                 raw_qrc = json_data['qrc']
@@ -76,18 +73,65 @@ class LyricsMatch:
                 self.raw_qrc.append([duration, seq, phrase])
 
         def load_raw_pitch(self):
-            with open(self.base_dir + "/raw_data/alldata/{}.json".format(self.number), 'r') as f:
+            with open(self.base_dir + "/raw_data/alldata/{}.json".format(self.number), 'r', encoding='utf-8') as f:
                 data = f.readline()
                 json_data = json.loads(data)
                 raw_notes = json_data['note']
 
-            notes_list = raw_notes.split("\n")
+            notes_list = raw_notes.split()
             self.raw_pitch = []
             length = int(len(notes_list) / 3)
             for i in range(length):
                 self.raw_pitch.append([int(notes_list[3*i]), int(notes_list[3*i+1]), int(notes_list[3*i+2])])
 
+        def pitch_grouping(self):
+            # NOTE: 如果有不归属于任何乐句的音高，就归为前一句
+            pre_end_idx = -1
+            for i in range(len(self.raw_qrc)):
+                start_time, end_time = self.raw_qrc[i][0][0], self.raw_qrc[i][0][0] + self.raw_qrc[i][0][1]
+                start_idx = end_idx = pre_end_idx + 1
+                # 应该不会遇到找不到的问题？
+                # NOTE: 200ms阈值定位
+                while start_idx < len(self.raw_pitch) and abs(self.raw_pitch[start_idx][0] - start_time) > 200:
+                    start_idx += 1
+                while end_idx < len(self.raw_pitch) and \
+                        abs(self.raw_pitch[end_time][0] + self.raw_pitch[end_time][1] - end_time) > 200:
+                    end_idx += 1
+                # 处理落单start
+                if pre_end_idx - start_idx > 1 and len(self.group_pitch) > 0:
+                    # 如果在当前句和前一句之间有落单的note
+                    for idx in range(pre_end_idx + 1, start_idx):
+                        self.group_pitch[-1].append(self.raw_pitch[idx])
+                elif pre_end_idx - start_idx > 1 and len(self.group_pitch) == 0:
+                    start_idx = 0
+                # 处理落单end
+                pre_end_idx = end_idx
+                self.group_pitch.append([self.raw_pitch[i] for i in range(start_idx, end_idx+1)])
+            # 暂时希望如此，如果出错了再想办法
+            assert len(self.qrc) == len(self.group_pitch)
 
+        @staticmethod
+        def str_similarity(str1, str2):
+            return difflib.SequenceMatcher(None, str1, str2).quick_ratio()
+
+        def find_match_sentence(self, idx, start) -> int:
+            """
+            输入一句lrc歌词，在qrc歌词中找到匹配的一段，返回匹配段的位置(索引)
+            :param idx: 输入的lrc的索引
+            :param start:
+            :return:
+            """
+            # 搜索范围包括start，从start开始
+            pass
+
+        def main(self):
+            start = 0
+            qrc_visited = [False] * len(self.raw_qrc)
+
+            for idx in len(self.lrc):
+                position = self.find_match_sentence(idx, start)
+                target_pitch = self.group_pitch[position]
+                # TODO: 接下来是第三步
 
     def __init__(self, base_dir):
         self.base_dir = base_dir
@@ -117,5 +161,18 @@ class LyricsMatch:
         for i in range(1, self.all_data_num, self.batch_size):
             self.init_log()
             for number in range(i, min(i + self.batch_size, self.all_data_num + 1)):
-                matcher = self.Matcher(number, base_dir)
+                matcher = self.Matcher(number, self.base_dir)
                 pass
+
+    def test(self):
+        matcher = self.Matcher(18291, self.base_dir)
+        matcher.load_lrc()
+        matcher.load_raw_qrc()
+        matcher.load_raw_pitch()
+        pass
+
+
+# %%
+if __name__ == "__main__":
+    process = LyricsMatch(r"E:/song_spider")
+    process.test()
