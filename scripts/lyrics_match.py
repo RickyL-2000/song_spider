@@ -50,7 +50,6 @@ class LyricsMatch:
             end = raw_qrc.find("/>", start) - 2
             raw_qrc_list = raw_qrc[start:end].split("\n")
             # 解析每一句
-            # TODO
             for sentence in raw_qrc_list:
                 sentence = sentence.strip()
                 # 总时间戳
@@ -59,7 +58,23 @@ class LyricsMatch:
                 duration = sentence[start+1:end].split(",")
                 duration = [int(duration[0]), int(duration[1])]
                 # 时间戳序列
-                # TODO
+                seq = []
+                start = sentence.find("(")
+                end = sentence.find(")")
+                while start != -1:
+                    node = sentence[start+1:end].split(",")
+                    node = [int(node[0]), int(node[1])]
+                    seq.append(node)
+                    start = sentence.find("(", start+1)
+                    end = sentence.find(")", end+1)
+                # 歌词
+                phrase = ""
+                start = sentence.find("(")
+                while start != -1:
+                    phrase = phrase + sentence[start-1]
+                    start = sentence.find("(", start+1)
+                self.raw_qrc.append([duration, seq, phrase])
+
 
 
     def __init__(self, base_dir):
