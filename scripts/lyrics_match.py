@@ -75,6 +75,18 @@ class LyricsMatch:
                     start = sentence.find("(", start+1)
                 self.raw_qrc.append([duration, seq, phrase])
 
+        def load_raw_pitch(self):
+            with open(self.base_dir + "/raw_data/alldata/{}.json".format(self.number), 'r') as f:
+                data = f.readline()
+                json_data = json.loads(data)
+                raw_notes = json_data['note']
+
+            notes_list = raw_notes.split("\n")
+            self.raw_pitch = []
+            length = int(len(notes_list) / 3)
+            for i in range(length):
+                self.raw_pitch.append([int(notes_list[3*i]), int(notes_list[3*i+1]), int(notes_list[3*i+2])])
+
 
 
     def __init__(self, base_dir):
