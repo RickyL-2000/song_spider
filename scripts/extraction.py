@@ -105,3 +105,14 @@ def check_title_is_digits(datapath):
 
 
 # %%
+# 将alldata的每一行分成一个文件放在raw_data中
+import codecs
+
+with open('E:/song_spider/alldata.json', 'r', encoding='utf-8') as alldata:
+    cnt = 0
+    for line in alldata.readlines():
+        if line[:len(codecs.BOM_UTF8)] == codecs.BOM_UTF8:
+            line = line[codecs.BOM_UTF8:]
+        cnt += 1
+        with open('E:/song_spider/raw_data/alldata/{}.json'.format(cnt), 'w', encoding='utf-8') as f:
+            f.write(line)
