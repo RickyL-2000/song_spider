@@ -3,6 +3,9 @@ import difflib
 import csv
 import os
 import json
+import librosa
+import pyworld as pw
+import numpy as np
 
 
 # %%
@@ -23,10 +26,10 @@ class LyricsMatch:
             self.lrc = []           # 这是和audio相匹配的歌词
                                     # 元素格式：[时间，歌词字符串]
             self.raw_qrc = []       # 这是数据集里自带的歌词，与audio不一定匹配，按句分
-                                    # 元素格式：[[总时间戳], [时间戳序列], 歌词字符串]
+                                    # 元素格式：[[总时间戳(开始，持续时间)], [时间戳序列], 歌词字符串]
             self.raw_pitch = []     # 这是数据集里自带的乐谱
                                     # 元素格式：[开始时间，持续时间，音高]
-            self.group_pitch = []   # 经过按照qrc乐句分组之后的group
+            self.grouped_pitch = []   # 经过按照qrc乐句分组之后的group
                                     # 元素格式：[按照乐句分组的一句pitch]
             self.qrc = []           # 这是处理拉伸后的歌词，与audio匹配
             self.pitch = []         # 这是处理拉伸后的乐谱
@@ -98,17 +101,31 @@ class LyricsMatch:
                         abs(self.raw_pitch[end_time][0] + self.raw_pitch[end_time][1] - end_time) > 200:
                     end_idx += 1
                 # 处理落单start
-                if pre_end_idx - start_idx > 1 and len(self.group_pitch) > 0:
+                if pre_end_idx - start_idx > 1 and len(self.grouped_pitch) > 0:
                     # 如果在当前句和前一句之间有落单的note
                     for idx in range(pre_end_idx + 1, start_idx):
-                        self.group_pitch[-1].append(self.raw_pitch[idx])
-                elif pre_end_idx - start_idx > 1 and len(self.group_pitch) == 0:
+                        self.grouped_pitch[-1].append(self.raw_pitch[idx])
+                elif pre_end_idx - start_idx > 1 and len(self.grouped_pitch) == 0:
                     start_idx = 0
                 # 处理落单end
                 pre_end_idx = end_idx
-                self.group_pitch.append([self.raw_pitch[i] for i in range(start_idx, end_idx+1)])
+                self.grouped_pitch.append([self.raw_pitch[i] for i in range(start_idx, end_idx + 1)])
             # 暂时希望如此，如果出错了再想办法
-            assert len(self.qrc) == len(self.group_pitch)
+            assert len(self.qrc) == len(self.grouped_pitch)
+
+        def read_wav(self):
+            # 还是在test阶段
+            y, fs = librosa.load(self.base_dir + r"/audios/separate/18291/vocals.wav", dtype=float)
+            return y, fs
+
+        @staticmethod
+        def extract_f0(y, fs):
+            f0, t = pw.dio(y, fs)
+            return f0, t
+
+        @staticmethod
+        def pitch2freq(pitch):
+            return 440 * 2 ** ((pitch - 69) / 12)
 
         @staticmethod
         def str_similarity(str1, str2):
@@ -134,15 +151,36 @@ class LyricsMatch:
             qrc_found[idx] = True
             return pos
 
+        def distance(self):
+            # 计算一段音频和一段数字频率序列的距离
+            pass
+
+        def stretch(self, idx, position):
+            """
+            将qrc中的歌词的时间戳线性变换以对齐audio的lrc，存放在self.qrc中
+            :param idx: qrc的索引
+            :param position: lrc的索引
+            :return: None
+            """
+            qrc_duration = self.raw_qrc[idx][0][1]  # qrc中该句的持续时间
+            lrc_duration = self.lrc
+
+        def save_qrc(self):
+            pass
+
+        def save_pitch(self):
+            pass
+
         def main(self):
-            start = 0
             qrc_found = [False] * len(self.raw_qrc)
             lrc_visited = [False] * len(self.lrc)
             for idx in range(len(self.raw_qrc)):
                 position = self.find_match_sentence(idx, qrc_found, lrc_visited)
                 matched_lrc = self.lrc[position]
-                target_pitch = self.group_pitch[idx]
+                pitch_group = self.grouped_pitch[idx]
                 # TODO: 接下来是第三步
+                # 拉伸
+                self.stretch(idx, position)
 
     def __init__(self, base_dir):
         self.base_dir = base_dir
