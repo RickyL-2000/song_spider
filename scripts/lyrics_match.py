@@ -129,12 +129,7 @@ class LyricsMatch:
                     continue
                 score.append(self.str_similarity(self.raw_qrc[idx][2], self.lrc[idx][1]))
             # 找出最相近的
-            maxscore = 0.0
-            for j in range(len(score)):
-                if score[j] > maxscore:
-                    maxscore = score[j]
-                    pos = j
-            return pos
+            return score.index(max(score))
 
         def main(self):
             start = 0
