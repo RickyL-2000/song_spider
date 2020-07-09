@@ -145,7 +145,7 @@ class Crawler_9ku:
         else:
             self.log = [0] * (72898+1)
 
-    def write_log(self, ):
+    def write_log(self):
         with open(self.base_dir + "helpers/crawler_log.csv", 'w') as log:
             writer = csv.writer(log)
             # for status in self.log:
@@ -184,8 +184,12 @@ if __name__ == "__main__":
     pass
 
 # %%
+# 试验用的脚本
+
+"""
+# %%
 # trytrywater
-soup = bs4(requests.get("http://m.9ku.com/play/588534.htm").text, 'html.parser')
+soup = bs4(requests.get("http://m.9ku.com/play/639169.htm").text, 'html.parser')
 
 # %%
 lyrics_box = soup.find('textarea', id='lrc_content')
@@ -193,12 +197,13 @@ raw_lyrics = lyrics_box.string
 lyrics_list = raw_lyrics.strip().split("\r\n")
 lrc_dict = {}
 for lrc in lyrics_list:
+    lrc = lrc.strip()
     if len(lrc) == 0 or lrc[0] != '[':
         continue
     if lrc[-1] == ']':
         # if this line is ended with ']', like [ti: 七里香]，这种不是歌词
         continue
-    lrc_word = lrc.replace('[', ']').strip().split(']')
+    lrc_word = lrc.replace('[', ']').split(']')
     for j in range(len(lrc_word) - 1):
         if lrc_word[j]: # not empty string
             lrc_dict[lrc_word[j]] = lrc_word[-1]    # value := lrc content
@@ -209,8 +214,4 @@ with open('E:/song_spider/processed_data/lrc/{}.csv'.format(18291), 'w') as f:
         t = key.split(':')
         t = int(float(t[0]) * 60000 + float(t[1]) * 1000)
         writer.writerow([t, lrc_dict[key]])
-
-# %%
-str = "[1234]"
-l = str.replace('[', ']').strip().split(']')
-
+"""
