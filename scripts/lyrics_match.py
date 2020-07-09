@@ -20,24 +20,25 @@ class LyricsMatch:
                 与此同时，要记录被修改过的pitch的日志，需要在最后遍历一遍把遗漏的未修改过的pitch进行平均拟合。
                 因为note和歌词并不能对齐
     """
+
     class Matcher:
         def __init__(self, number, base_dir):
             self.number = number
             self.base_dir = base_dir
-            self.lrc = []                   # 这是和audio相匹配的歌词
-                                            # 元素格式：[时间，歌词字符串]
-            self.raw_qrc = []               # 这是数据集里自带的歌词，与audio不一定匹配，按句分
-                                            # 元素格式：[[总时间戳(开始，持续时间)], [时间戳序列(开始，持续时间)], 歌词字符串]
-            self.raw_pitch = []             # 这是数据集里自带的乐谱
-                                            # 元素格式：[开始时间，持续时间，音高]
-            self.grouped_raw_pitch = []     # 经过按照qrc乐句分组之后的group
-                                            # 元素格式：[按照乐句分组的一句pitch]
-            self.qrc = []                   # 这是处理拉伸后的歌词，与audio匹配
-            self.grouped_pitch = []         # 这是处理拉伸后的分组乐谱
+            self.lrc = []  # 这是和audio相匹配的歌词
+            # 元素格式：[时间，歌词字符串]
+            self.raw_qrc = []  # 这是数据集里自带的歌词，与audio不一定匹配，按句分
+            # 元素格式：[[总时间戳(开始，持续时间)], [时间戳序列(开始，持续时间)], 歌词字符串]
+            self.raw_pitch = []  # 这是数据集里自带的乐谱
+            # 元素格式：[开始时间，持续时间，音高]
+            self.grouped_raw_pitch = []  # 经过按照qrc乐句分组之后的group
+            # 元素格式：[按照乐句分组的一句pitch]
+            self.qrc = []  # 这是处理拉伸后的歌词，与audio匹配，格式与raw相同
+            self.grouped_pitch = []  # 这是处理拉伸后的分组乐谱
 
-            self.f0 = []                    # 音频的基频曲线
-            self.t = []                     # 音频的基频的时间序列
-                                            # 默认 5ms 为间隔。如果要修改该间隔，需要修改：stretch
+            self.f0 = []  # 音频的基频曲线
+            self.t = []  # 音频的基频的时间序列
+            # 默认 5ms 为间隔。如果要修改该间隔，需要修改：stretch
 
         def load_lrc(self):
             with open(self.base_dir + "/processed_data/lrc/{}.csv".format(self.number), 'r') as f:
@@ -60,24 +61,24 @@ class LyricsMatch:
                 # 总时间戳
                 start = sentence.find("[")
                 end = sentence.find("]")
-                duration = sentence[start+1:end].split(",")
+                duration = sentence[start + 1:end].split(",")
                 duration = [int(duration[0]), int(duration[1])]
                 # 时间戳序列
                 seq = []
                 start = sentence.find("(")
                 end = sentence.find(")")
                 while start != -1:
-                    node = sentence[start+1:end].split(",")
+                    node = sentence[start + 1:end].split(",")
                     node = [int(node[0]), int(node[1])]
                     seq.append(node)
-                    start = sentence.find("(", start+1)
-                    end = sentence.find(")", end+1)
+                    start = sentence.find("(", start + 1)
+                    end = sentence.find(")", end + 1)
                 # 歌词
                 phrase = ""
                 start = sentence.find("(")
                 while start != -1:
-                    phrase = phrase + sentence[start-1]
-                    start = sentence.find("(", start+1)
+                    phrase = phrase + sentence[start - 1]
+                    start = sentence.find("(", start + 1)
                 self.raw_qrc.append([duration, seq, phrase])
             self.qrc = self.raw_qrc.copy()  # 先准备着
 
@@ -91,7 +92,7 @@ class LyricsMatch:
             self.raw_pitch = []
             length = int(len(notes_list) / 3)
             for i in range(length):
-                self.raw_pitch.append([int(notes_list[3*i]), int(notes_list[3*i+1]), int(notes_list[3*i+2])])
+                self.raw_pitch.append([int(notes_list[3 * i]), int(notes_list[3 * i + 1]), int(notes_list[3 * i + 2])])
 
         def pitch_grouping(self):
             # NOTE: 如果有不归属于任何乐句的音高，就归为前一句
@@ -176,24 +177,24 @@ class LyricsMatch:
             :param position: lrc的索引
             :return: None
             """
-            qrc_start = self.raw_qrc[idx][0][0]     # 开始时间，单位ms
+            qrc_start = self.raw_qrc[idx][0][0]  # 开始时间，单位ms
             qrc_end = self.raw_qrc[idx][0][0] + self.raw_qrc[idx][0][1]
             lrc_start = self.lrc[position][0]
             if position == len(self.lrc) - 1:
                 lrc_next_start = int(self.t[-1] * 1000)
             else:
-                lrc_next_start = self.lrc[position+1][0]
+                lrc_next_start = self.lrc[position + 1][0]
 
             # 制作频率乐谱
-            notes_list = []    # 格式：[时间，频率]
-            time_idx = qrc_start // 5 * 5   # 以5ms为单位
-            note_idx = 0                    # 在当前乐句的初始idx是0
+            notes_list = []  # 格式：[时间，频率]
+            time_idx = qrc_start // 5 * 5  # 以5ms为单位
+            note_idx = 0  # 在当前乐句的初始idx是0
             sentence_len = len(self.grouped_raw_pitch[idx])
             cur_f = self.pitch2freq(self.grouped_raw_pitch[idx][0][2])
             while note_idx < sentence_len:
                 while time_idx < self.grouped_raw_pitch[idx][note_idx][0]:
                     notes_list.append([time_idx / 1000, cur_f])
-                    time_idx += 5   # 以 5ms 为间隔
+                    time_idx += 5  # 以 5ms 为间隔
                 cur_f = self.pitch2freq(self.grouped_raw_pitch[idx][note_idx][2])
                 while time_idx < self.grouped_raw_pitch[idx][note_idx][0] + self.grouped_raw_pitch[idx][note_idx][1]:
                     notes_list.append([time_idx / 1000, cur_f])
@@ -203,18 +204,18 @@ class LyricsMatch:
             # 开始扫描，通过音频确定lrc一段歌词的结尾
             min_distance = float('inf')
             min_pos = lrc_next_start
-            cursor = lrc_next_start     # cursor 位置不包含，左闭右开
-            while cursor > lrc_start:   # TODO: 这个循环可以优化
+            cursor = lrc_next_start  # cursor 位置不包含，左闭右开
+            while cursor > lrc_start:  # TODO: 这个循环可以优化
                 # 截取 f0 audio
                 candidate = self.f0[lrc_start // 5: cursor // 5]
                 distance = self.get_distance(notes_list[:, 1], candidate)
                 if distance < min_distance:
                     min_distance = distance
-                    min_pos = cursor // 5 * 5 - 5   # cursor 位置不包含
+                    min_pos = cursor // 5 * 5 - 5  # cursor 位置不包含
                 cursor -= 5
-            lrc_end = min_pos   # lrc结束时间，单位ms
+            lrc_end = min_pos  # lrc结束时间，单位ms
 
-            # 开始拉伸
+            # 开始拉伸歌词
             stretch_rate = (lrc_end - lrc_start) / (qrc_end - qrc_start)
             # 拉伸总时间戳
             self.qrc[idx][0][0] = lrc_start
@@ -225,9 +226,22 @@ class LyricsMatch:
                     self.qrc[idx][1][i][0] = lrc_start
                     self.qrc[idx][1][i][1] = int(stretch_rate * self.qrc[idx][1][i][1])
                 else:
-                    self.qrc[idx][1][i][0] = self.qrc[idx][1][i-1][0] + \
-                                             int((self.qrc[idx][1][i][0] - self.qrc[idx][1][i-1][0]) * stretch_rate)
+                    self.qrc[idx][1][i][0] = self.qrc[idx][1][i - 1][0] \
+                                             + int((self.qrc[idx][1][i][0] - self.qrc[idx][1][i - 1][0]) * stretch_rate)
                     self.qrc[idx][1][i][1] = int(stretch_rate * self.qrc[idx][1][i][1])
+
+            # 开始拉伸乐谱
+            stretch_rate = (lrc_end - lrc_start) / \
+                           (self.grouped_raw_pitch[idx][-1][0] + self.grouped_raw_pitch[idx][-1][1] -
+                            self.grouped_raw_pitch[idx][0][0])
+            for i in range(len(self.grouped_pitch[idx])):
+                if i == 0:
+                    self.grouped_pitch[idx][i][0] = lrc_start
+                    self.grouped_pitch[idx][i][1] = int(stretch_rate * self.grouped_pitch[idx][i][1])
+                else:
+                    self.grouped_pitch[idx][i][0] = self.grouped_pitch[idx][i-1][0] \
+                                                    + int((self.grouped_pitch[idx][i][0]
+                                                           - self.grouped_pitch[idx][i-1][0]) * stretch_rate)
 
         def save_qrc(self):
             pass
@@ -240,9 +254,6 @@ class LyricsMatch:
             lrc_visited = [False] * len(self.lrc)
             for idx in range(len(self.raw_qrc)):
                 position = self.find_match_sentence(idx, qrc_found, lrc_visited)
-                matched_lrc = self.lrc[position]
-                pitch_group = self.grouped_raw_pitch[idx]
-                # TODO: 接下来是第三步
                 # 拉伸
                 self.stretch(idx, position)
 
@@ -260,7 +271,7 @@ class LyricsMatch:
                 for status in reader:
                     self.log.append(status)
         else:
-            self.log = [0] * (72898+1)
+            self.log = [0] * (72898 + 1)
 
     def write_log(self):
         with open(self.base_dir + "helpers/match_log.csv", 'w') as log:
