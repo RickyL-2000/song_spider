@@ -34,6 +34,9 @@ class LyricsMatch:
             self.qrc = []           # 这是处理拉伸后的歌词，与audio匹配
             self.pitch = []         # 这是处理拉伸后的乐谱
 
+            self.f0 = []            # 音频的基频曲线
+            self.t = []             # 音频的基频的时间序列
+
         def load_lrc(self):
             with open(self.base_dir + "/processed_data/lrc/{}.csv".format(self.number), 'r') as f:
                 reader = csv.DictReader(f)
@@ -113,9 +116,13 @@ class LyricsMatch:
             # 暂时希望如此，如果出错了再想办法
             assert len(self.qrc) == len(self.grouped_pitch)
 
+        def load_f0(self):
+            y, fs = self.read_wav()
+            self.f0, self.t = self.extract_f0(y, fs)
+
         def read_wav(self):
             # 还是在test阶段
-            y, fs = librosa.load(self.base_dir + r"/audios/separate/18291/vocals.wav", dtype=float)
+            y, fs = librosa.load(self.base_dir + r"/audios/separate/{}/vocals.wav".format(self.number), dtype=float)
             return y, fs
 
         @staticmethod
