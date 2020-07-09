@@ -200,6 +200,7 @@ class LyricsMatch:
                     notes_list.append([time_idx / 1000, cur_f])
                     time_idx += 5
                 note_idx += 1
+            notes_list = np.array(notes_list)
 
             # 开始扫描，通过音频确定lrc一段歌词的结尾
             min_distance = float('inf')
@@ -244,10 +245,29 @@ class LyricsMatch:
                                                            - self.grouped_pitch[idx][i-1][0]) * stretch_rate)
 
         def save_qrc(self):
-            pass
+            """
+            写入文件格式：一行为一句话，每句话开头总时间戳[开始，持续时间]，
+                       然后跟上若干(开始，持续时间)为每个字的时间戳
+            """
+            with open(self.base_dir + "/processed_data/qrc/{}.txt", 'w', encoding='utf-8') as f:
+                for sentence in self.qrc:
+                    f.write("[{},{}]".format(sentence[0][0], sentence[0][1]))
+                    for i in range(len(sentence[1])):
+                        f.write("{}({},{})".format(sentence[2][i], sentence[1][i][0], sentence[1][i][0]))
+                    f.write("\n")
 
         def save_pitch(self):
-            pass
+            """
+            写入文件格式：一行为一句话，每句话中的每个音符为(开始，持续时间，音高)，
+                       每两个音符之间用空格分割，行末没有空格
+            """
+            with open(self.base_dir + "/processed_data/pitch/{}.txt", 'w', encoding='utf-8') as f:
+                for sentence in self.grouped_pitch:
+                    for i in range(len(sentence)):
+                        if i != 0:
+                            f.write(" ")
+                        f.write("({},{},{})".format(sentence[i][0], sentence[i][1], sentence[i][2]))
+                    f.write("\n")
 
         def main(self):
             qrc_found = [False] * len(self.raw_qrc)
@@ -256,6 +276,9 @@ class LyricsMatch:
                 position = self.find_match_sentence(idx, qrc_found, lrc_visited)
                 # 拉伸
                 self.stretch(idx, position)
+            self.save_qrc()
+            self.save_pitch()
+            print("{} --- Process Successfully".format(self.number))
 
     def __init__(self, base_dir):
         self.base_dir = base_dir
