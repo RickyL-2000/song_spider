@@ -98,14 +98,16 @@ class LyricsMatch:
             # NOTE: 如果有不归属于任何乐句的音高，就归为前一句
             pre_end_idx = -1
             for i in range(len(self.raw_qrc)):
-                start_time, end_time = self.raw_qrc[i][0][0], self.raw_qrc[i][0][0] + self.raw_qrc[i][0][1]
+                start_time = self.raw_qrc[i][0][0]
+                # end_time = self.raw_qrc[i][0][0] + self.raw_qrc[i][0][1]
+                end_time = self.raw_qrc[i][0][0]    # 是结束的字的开始时间！不是整句的结束时间！
                 start_idx = end_idx = pre_end_idx + 1
                 # 应该不会遇到找不到的问题？
                 # NOTE: 200ms阈值定位
                 while start_idx < len(self.raw_pitch) and abs(self.raw_pitch[start_idx][0] - start_time) > 200:
                     start_idx += 1
-                while end_idx < len(self.raw_pitch) and \
-                        abs(self.raw_pitch[end_time][0] + self.raw_pitch[end_time][1] - end_time) > 200:
+                while end_idx < len(self.raw_pitch) and abs(self.raw_pitch[end_idx][0] - end_time) > 200:   # 结束的字的开始时间
+                    # FIXME: 结束时间不能这么算！因为音符可能会比歌词的晚结束很长时间，超过200ms就不精确了！正确做法还是找开始时间！
                     end_idx += 1
                 # 处理落单start
                 if pre_end_idx - start_idx > 1 and len(self.grouped_raw_pitch) > 0:
@@ -116,7 +118,7 @@ class LyricsMatch:
                     start_idx = 0
                 # 处理落单end
                 pre_end_idx = end_idx
-                self.grouped_raw_pitch.append([self.raw_pitch[i] for i in range(start_idx, end_idx + 1)])
+                self.grouped_raw_pitch.append([self.raw_pitch[i] for i in range(start_idx, end_idx + 1)])   # FIXME: index 问题
             # 暂时希望如此，如果出错了再想办法
             assert len(self.qrc) == len(self.grouped_raw_pitch)
             self.grouped_pitch = self.grouped_raw_pitch
@@ -316,7 +318,8 @@ class LyricsMatch:
         matcher.load_lrc()
         matcher.load_raw_qrc()
         matcher.load_raw_pitch()
-        pass
+        matcher.pitch_grouping()
+        matcher.main()
 
 
 # %%
