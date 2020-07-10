@@ -173,7 +173,7 @@ class LyricsMatch:
                 if lrc_visited[j]:
                     score.append(0.0)
                     continue
-                score.append(self.str_similarity(self.raw_qrc[idx][2], self.lrc[idx][1]))
+                score.append(self.str_similarity(self.raw_qrc[idx][2], self.lrc[j][1]))
             # 找出最相近的
             pos = score.index(max(score))
             lrc_visited[pos] = True
