@@ -14,7 +14,7 @@ class LyricsMatch:
     """
     秒级别进行乐句对齐
     1. 遍历qrc歌词中的每一句，在lrc歌词中找到匹配段，通过 difflib
-    2. 以200ms的阈值定位该句的pitch
+    2. 以300ms的阈值定位该句的pitch
     3. 通过lrc歌词中的时间戳来拉伸qrc歌词中的时间戳
        拉伸方法：定位要拉伸的句子之后，将该句子的大致时间段抽出，并用该时间段定位要拉伸的乐谱的乐句，然后同时拉伸。
                 与此同时，要记录被修改过的pitch的日志，需要在最后遍历一遍把遗漏的未修改过的pitch进行平均拟合。
@@ -104,12 +104,26 @@ class LyricsMatch:
                 start_idx = pre_end_idx + 1
                 end_idx = start_idx + 1
                 # 应该不会遇到找不到的问题？
-                # NOTE: 200ms阈值定位
-                while start_idx < len(self.raw_pitch) and abs(self.raw_pitch[start_idx][0] - start_time) > 200:
-                    start_idx += 1
-                while end_idx < len(self.raw_pitch) and abs(self.raw_pitch[end_idx][0] - end_time) > 200:   # 结束的字的开始时间
-                    # FIXME: 现在end_idx和start_idx变成一样的了
-                    end_idx += 1
+                # NOTE: 250ms阈值定位
+                # NOTE: 不能只通过阈值来锁定目标Note的位置，必须要用temp找最近的，因为有时候可能最近的的距离也超过阈值
+                min_dist = float('inf')
+                while start_idx < len(self.raw_pitch) and abs(self.raw_pitch[start_idx][0] - start_time) > 250:
+                    dist = abs(self.raw_pitch[start_idx][0] - start_time)
+                    if dist < min_dist:
+                        min_dist = dist
+                        start_idx += 1
+                    else:
+                        start_idx -= 1
+                        break
+                min_dist = float('inf')
+                while end_idx < len(self.raw_pitch) and abs(self.raw_pitch[end_idx][0] - end_time) > 250:   # 结束的字的开始时间
+                    dist = abs(self.raw_pitch[end_idx][0] - end_time)
+                    if dist < min_dist:
+                        min_dist = dist
+                        end_idx += 1
+                    else:
+                        end_idx -= 1
+                        break
                 # 处理落单start
                 if pre_end_idx - start_idx > 1 and len(self.grouped_raw_pitch) > 0:
                     # 如果在当前句和前一句之间有落单的note
