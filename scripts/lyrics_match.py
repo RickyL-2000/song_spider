@@ -26,20 +26,23 @@ class LyricsMatch:
         def __init__(self, number, base_dir):
             self.number = number
             self.base_dir = base_dir
-            self.lrc = []  # 这是和audio相匹配的歌词
-            # 元素格式：[时间，歌词字符串]
-            self.raw_qrc = []  # 这是数据集里自带的歌词，与audio不一定匹配，按句分
-            # 元素格式：[[总时间戳(开始，持续时间)], [时间戳序列(开始，持续时间)], 歌词字符串]
-            self.raw_pitch = []  # 这是数据集里自带的乐谱
-            # 元素格式：[开始时间，持续时间，音高]
-            self.grouped_raw_pitch = []  # 经过按照qrc乐句分组之后的group
-            # 元素格式：[按照乐句分组的一句pitch]
-            self.qrc = []  # 这是处理拉伸后的歌词，与audio匹配，格式与raw相同
-            self.grouped_pitch = []  # 这是处理拉伸后的分组乐谱
+            self.lrc = []                   # 这是和audio相匹配的歌词
+                                            # 元素格式：[时间，歌词字符串]
+            self.raw_qrc = []               # 这是数据集里自带的歌词，与audio不一定匹配，按句分
+                                            # 元素格式：[[总时间戳(开始，持续时间)], [时间戳序列(开始，持续时间)], 歌词字符串]
+            self.raw_pitch = []             # 这是数据集里自带的乐谱
+                                            # 元素格式：[开始时间，持续时间，音高]
+            self.grouped_raw_pitch = []     # 经过按照qrc乐句分组之后的group
+                                            # 元素格式：[按照乐句分组的一句pitch]
+            self.qrc = []                   # 这是处理拉伸后的歌词，与audio匹配，格式与raw相同
+            self.grouped_pitch = []         # 这是处理拉伸后的分组乐谱
 
-            self.f0 = []  # 音频的基频曲线
-            self.t = []  # 音频的基频的时间序列
-            # 默认 5ms 为间隔。如果要修改该间隔，需要修改：stretch
+            self.f0 = []                    # 音频的基频曲线
+            self.t = []                     # 音频的基频的时间序列
+                                            # 默认 5ms 为间隔。如果要修改该间隔，需要修改：stretch
+
+            self.tempo_ratio = 0.0          # == tempo_lrc / tempo_qrc
+            self.__idx_qrc2lrc = []         # 一个index的映射，即__idx_qrc2lrc[idx] = position，idx是qrc索引，position是lrc索引
 
         def load_lrc(self):
             with open(self.base_dir + "/processed_data/lrc/{}.csv".format(self.number), 'r') as f:
@@ -145,7 +148,7 @@ class LyricsMatch:
 
         def read_wav(self):
             # 还是在test阶段
-            y, fs = librosa.load(self.base_dir + r"/audios/separate/{}/vocals.wav".format(self.number), dtype=float)
+            y, fs = librosa.load(self.base_dir + r"/audios/separate/{}/vocals.wav".format(self.number), dtype=float, sr=None)
             return y, fs
 
         @staticmethod
@@ -160,6 +163,26 @@ class LyricsMatch:
         @staticmethod
         def str_similarity(str1, str2):
             return difflib.SequenceMatcher(None, str1, str2).quick_ratio()
+
+        def get_idx_qrc2lrc(self):
+            assert len(self.raw_qrc) != 0
+            assert len(self.lrc) != 0
+            qrc_found = [False] * len(self.raw_qrc)
+            lrc_visited = [False] * len(self.lrc)
+            for idx in range(len(self.raw_qrc)):
+                self.__idx_qrc2lrc.append(self.find_match_sentence(idx, qrc_found, lrc_visited))
+            # TODO: 解决有qrc没有找到对应lrc位置的问题
+
+        def get_tempo_ratio(self):
+            """
+            NOTE: 在调用这个函数之前，必须先调用load_raw_pitch和load_lrc！
+                  换言之，self.lrc和self.grouped_raw_pitch不能为空！
+            """
+            assert len(self.grouped_raw_pitch) != 0
+            assert len(self.raw_qrc) != 0
+            ratios = []
+            pass
+            # TODO
 
         def find_match_sentence(self, idx, qrc_found, lrc_visited) -> int:
             """
@@ -296,10 +319,8 @@ class LyricsMatch:
                     f.write("\n")
 
         def main(self):
-            qrc_found = [False] * len(self.raw_qrc)
-            lrc_visited = [False] * len(self.lrc)
             for idx in range(len(self.raw_qrc)):
-                position = self.find_match_sentence(idx, qrc_found, lrc_visited)
+                position = self.__idx_qrc2lrc[idx]
                 # 拉伸
                 self.stretch(idx, position)
             self.save_qrc()
