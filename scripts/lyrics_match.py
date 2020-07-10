@@ -253,7 +253,9 @@ class LyricsMatch:
             min_distance = float('inf')
             min_pos = lrc_next_start
             cursor = lrc_next_start  # cursor 位置不包含，左闭右开
-            while cursor > lrc_start:  # TODO: 这个循环可以优化
+            # TODO: 添加一个向左扫描的极限
+            left_most = lrc_start + int(self.raw_qrc[idx][0][1] * self.tempo_ratio * 0.8)  # qrc的该段的时长 * 0.8的余量
+            while cursor > left_most:  # TODO: 这个循环可以优化
                 # 截取 f0 audio
                 candidate = self.f0[lrc_start // 5: cursor // 5]
 
@@ -370,6 +372,7 @@ class LyricsMatch:
         matcher.load_raw_pitch()
         matcher.get_idx_qrc2lrc()
         matcher.pitch_grouping()
+        matcher.get_tempo_ratio()
         matcher.load_f0()
         matcher.main()
 
