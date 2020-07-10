@@ -100,14 +100,15 @@ class LyricsMatch:
             for i in range(len(self.raw_qrc)):
                 start_time = self.raw_qrc[i][0][0]
                 # end_time = self.raw_qrc[i][0][0] + self.raw_qrc[i][0][1]
-                end_time = self.raw_qrc[i][0][0]    # 是结束的字的开始时间！不是整句的结束时间！
-                start_idx = end_idx = pre_end_idx + 1
+                end_time = self.raw_qrc[i][1][-1][0]    # 是结束的字的开始时间！不是整句的结束时间！
+                start_idx = pre_end_idx + 1
+                end_idx = start_idx + 1
                 # 应该不会遇到找不到的问题？
                 # NOTE: 200ms阈值定位
                 while start_idx < len(self.raw_pitch) and abs(self.raw_pitch[start_idx][0] - start_time) > 200:
                     start_idx += 1
                 while end_idx < len(self.raw_pitch) and abs(self.raw_pitch[end_idx][0] - end_time) > 200:   # 结束的字的开始时间
-                    # FIXME: 结束时间不能这么算！因为音符可能会比歌词的晚结束很长时间，超过200ms就不精确了！正确做法还是找开始时间！
+                    # FIXME: 现在end_idx和start_idx变成一样的了
                     end_idx += 1
                 # 处理落单start
                 if pre_end_idx - start_idx > 1 and len(self.grouped_raw_pitch) > 0:
