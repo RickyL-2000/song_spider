@@ -41,7 +41,7 @@ class LyricsMatch:
             self.t = []                     # 音频的基频的时间序列
                                             # 默认 5ms 为间隔。如果要修改该间隔，需要修改：stretch
 
-            self.tempo_ratio = 0.0          # == tempo_lrc / tempo_qrc
+            self.tempo_ratio = 0.0          # == lrc_duration / qrc_duration，和节奏(或者速度)的定义应该是相反的
             self.__idx_qrc2lrc = []         # 一个index的映射，即__idx_qrc2lrc[idx] = position，idx是qrc索引，position是lrc索引
 
         def load_lrc(self):
@@ -180,9 +180,14 @@ class LyricsMatch:
             """
             assert len(self.grouped_raw_pitch) != 0
             assert len(self.raw_qrc) != 0
-            ratios = []
-            pass
-            # TODO
+            ratio_list = []
+            for idx in range(1, len(self.raw_qrc)):
+                pos = self.__idx_qrc2lrc[idx]
+                pre_pos = self.__idx_qrc2lrc[idx-1]
+                lrc_dur = self.lrc[pos][0] - self.lrc[pre_pos][0]
+                qrc_dur = self.raw_qrc[idx][0][0] - self.raw_qrc[idx-1][0][0]
+                ratio_list.append(lrc_dur / qrc_dur)
+            self.tempo_ratio = sum(ratio_list) / len(ratio_list)
 
         def find_match_sentence(self, idx, qrc_found, lrc_visited) -> int:
             """
@@ -363,6 +368,7 @@ class LyricsMatch:
         matcher.load_lrc()
         matcher.load_raw_qrc()
         matcher.load_raw_pitch()
+        matcher.get_idx_qrc2lrc()
         matcher.pitch_grouping()
         matcher.load_f0()
         matcher.main()
