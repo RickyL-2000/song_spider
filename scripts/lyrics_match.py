@@ -305,7 +305,7 @@ class LyricsMatch:
             写入文件格式：一行为一句话，每句话开头总时间戳[开始，持续时间]，
                        然后跟上若干(开始，持续时间)为每个字的时间戳
             """
-            with open(self.base_dir + "/processed_data/qrc/{}.txt", 'w', encoding='utf-8') as f:
+            with open(self.base_dir + "/processed_data/qrc/{}.txt".format(self.number), 'w', encoding='utf-8') as f:
                 for sentence in self.qrc:
                     f.write("[{},{}]".format(sentence[0][0], sentence[0][1]))
                     for i in range(len(sentence[1])):
@@ -317,7 +317,7 @@ class LyricsMatch:
             写入文件格式：一行为一句话，每句话中的每个音符为(开始，持续时间，音高)，
                        每两个音符之间用空格分割，行末没有空格
             """
-            with open(self.base_dir + "/processed_data/pitch/{}.txt", 'w', encoding='utf-8') as f:
+            with open(self.base_dir + "/processed_data/pitch/{}.txt".format(self.number), 'w', encoding='utf-8') as f:
                 for sentence in self.grouped_pitch:
                     for i in range(len(sentence)):
                         if i != 0:
@@ -327,6 +327,7 @@ class LyricsMatch:
 
         def main(self):
             for idx in range(len(self.raw_qrc)):
+                # print(idx)
                 position = self.__idx_qrc2lrc[idx]
                 # 拉伸
                 self.stretch(idx, position)
