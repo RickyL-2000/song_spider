@@ -7,6 +7,7 @@ import librosa
 import pyworld as pw
 import numpy as np
 from dtw import *
+import matplotlib.pylab as plt
 
 
 # %%
@@ -44,7 +45,7 @@ class LyricsMatch:
             with open(self.base_dir + "/processed_data/lrc/{}.csv".format(self.number), 'r') as f:
                 reader = csv.DictReader(f)
                 for item in reader:
-                    self.lrc.append([item['time'], item['value']])
+                    self.lrc.append([int(item['time']), item['value']])
 
         def load_raw_qrc(self):
             with open(self.base_dir + "/raw_data/alldata/{}.json".format(self.number), 'r', encoding='utf-8') as f:
@@ -203,16 +204,17 @@ class LyricsMatch:
                 lrc_next_start = self.lrc[position + 1][0]
 
             # 制作频率乐谱
-            notes_list = []  # 格式：[时间，频率]
+            notes_list = []  # 格式：[秒，频率]
             time_idx = qrc_start // 5 * 5  # 以5ms为单位
             note_idx = 0  # 在当前乐句的初始idx是0
             sentence_len = len(self.grouped_raw_pitch[idx])
-            cur_f = self.pitch2freq(self.grouped_raw_pitch[idx][0][2])
+            # cur_f = self.pitch2freq(self.grouped_raw_pitch[idx][0][2] - 12)     # 降八度
             while note_idx < sentence_len:
+                cur_f = 0.0
                 while time_idx < self.grouped_raw_pitch[idx][note_idx][0]:
                     notes_list.append([time_idx / 1000, cur_f])
                     time_idx += 5  # 以 5ms 为间隔
-                cur_f = self.pitch2freq(self.grouped_raw_pitch[idx][note_idx][2])
+                cur_f = self.pitch2freq(self.grouped_raw_pitch[idx][note_idx][2] - 12)  # 降八度
                 while time_idx < self.grouped_raw_pitch[idx][note_idx][0] + self.grouped_raw_pitch[idx][note_idx][1]:
                     notes_list.append([time_idx / 1000, cur_f])
                     time_idx += 5
@@ -226,6 +228,13 @@ class LyricsMatch:
             while cursor > lrc_start:  # TODO: 这个循环可以优化
                 # 截取 f0 audio
                 candidate = self.f0[lrc_start // 5: cursor // 5]
+
+                # plot start
+                # plt.plot(self.t[lrc_start // 5: cursor // 5], candidate, label='f0')
+                # plt.plot(notes_list[:, 0], notes_list[:, 1], label='score')
+                # plt.show()
+                # plot end
+
                 distance = self.get_distance(notes_list[:, 1], candidate)
                 if distance < min_distance:
                     min_distance = distance
@@ -334,6 +343,7 @@ class LyricsMatch:
         matcher.load_raw_qrc()
         matcher.load_raw_pitch()
         matcher.pitch_grouping()
+        matcher.load_f0()
         matcher.main()
 
 
