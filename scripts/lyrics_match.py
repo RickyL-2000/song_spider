@@ -7,6 +7,7 @@ import librosa
 import pyworld as pw
 import numpy as np
 from dtw import *
+import copy
 import matplotlib.pylab as plt
 
 
@@ -84,7 +85,7 @@ class LyricsMatch:
                     phrase = phrase + sentence[start - 1]
                     start = sentence.find("(", start + 1)
                 self.raw_qrc.append([duration, seq, phrase])
-            self.qrc = self.raw_qrc.copy()  # 先准备着
+            self.qrc = copy.deepcopy(self.raw_qrc)  # 先准备着
 
         def load_raw_pitch(self):
             with open(self.base_dir + "/raw_data/alldata/{}.json".format(self.number), 'r', encoding='utf-8') as f:
@@ -140,7 +141,7 @@ class LyricsMatch:
                 self.grouped_raw_pitch.append([self.raw_pitch[i] for i in range(start_idx, end_idx + 1)])   # FIXME: index 问题
             # 暂时希望如此，如果出错了再想办法
             assert len(self.qrc) == len(self.grouped_raw_pitch)
-            self.grouped_pitch = self.grouped_raw_pitch
+            self.grouped_pitch = copy.deepcopy(self.grouped_raw_pitch)
 
         def load_f0(self):
             y, fs = self.read_wav()
@@ -284,7 +285,8 @@ class LyricsMatch:
                     self.qrc[idx][1][i][1] = int(stretch_rate * self.qrc[idx][1][i][1])
                 else:
                     self.qrc[idx][1][i][0] = self.qrc[idx][1][i - 1][0] \
-                                             + int((self.qrc[idx][1][i][0] - self.qrc[idx][1][i - 1][0]) * stretch_rate)
+                                             + int((self.raw_qrc[idx][1][i][0] - self.raw_qrc[idx][1][i - 1][0])
+                                                   * stretch_rate)
                     self.qrc[idx][1][i][1] = int(stretch_rate * self.qrc[idx][1][i][1])
 
             # 开始拉伸乐谱
@@ -297,8 +299,9 @@ class LyricsMatch:
                     self.grouped_pitch[idx][i][1] = int(stretch_rate * self.grouped_pitch[idx][i][1])
                 else:
                     self.grouped_pitch[idx][i][0] = self.grouped_pitch[idx][i-1][0] \
-                                                    + int((self.grouped_pitch[idx][i][0]
-                                                           - self.grouped_pitch[idx][i-1][0]) * stretch_rate)
+                                                    + int((self.grouped_raw_pitch[idx][i][0]
+                                                           - self.grouped_raw_pitch[idx][i-1][0]) * stretch_rate)
+                    self.grouped_pitch[idx][i][1] = int(stretch_rate * self.grouped_pitch[idx][i][1])
 
         def save_qrc(self):
             """
@@ -309,7 +312,7 @@ class LyricsMatch:
                 for sentence in self.qrc:
                     f.write("[{},{}]".format(sentence[0][0], sentence[0][1]))
                     for i in range(len(sentence[1])):
-                        f.write("{}({},{})".format(sentence[2][i], sentence[1][i][0], sentence[1][i][0]))
+                        f.write("{}({},{})".format(sentence[2][i], sentence[1][i][0], sentence[1][i][1]))
                     f.write("\n")
 
         def save_pitch(self):
@@ -327,7 +330,7 @@ class LyricsMatch:
 
         def main(self):
             for idx in range(len(self.raw_qrc)):
-                # print(idx)
+                print(idx)
                 position = self.__idx_qrc2lrc[idx]
                 # 拉伸
                 self.stretch(idx, position)
