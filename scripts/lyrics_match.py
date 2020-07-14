@@ -105,7 +105,7 @@ class LyricsMatch:
             for i in range(len(self.raw_qrc)):
                 start_time = self.raw_qrc[i][0][0]
                 # end_time = self.raw_qrc[i][0][0] + self.raw_qrc[i][0][1]
-                end_time = self.raw_qrc[i][1][-1][0]    # 是结束的字的开始时间！不是整句的结束时间！
+                end_time = self.raw_qrc[i][1][-1][0]  # 是结束的字的开始时间！不是整句的结束时间！
                 start_idx = pre_end_idx + 1
                 end_idx = start_idx + 1
                 # 应该不会遇到找不到的问题？
@@ -121,7 +121,7 @@ class LyricsMatch:
                         start_idx -= 1
                         break
                 min_dist = float('inf')
-                while end_idx < len(self.raw_pitch) and abs(self.raw_pitch[end_idx][0] - end_time) > 250:   # 结束的字的开始时间
+                while end_idx < len(self.raw_pitch) and abs(self.raw_pitch[end_idx][0] - end_time) > 250:  # 结束的字的开始时间
                     dist = abs(self.raw_pitch[end_idx][0] - end_time)
                     if dist < min_dist:
                         min_dist = dist
@@ -138,7 +138,8 @@ class LyricsMatch:
                     start_idx = 0
                 # 处理落单end
                 pre_end_idx = end_idx
-                self.grouped_raw_pitch.append([self.raw_pitch[i] for i in range(start_idx, end_idx + 1)])   # FIXME: index 问题
+                self.grouped_raw_pitch.append(
+                    [self.raw_pitch[i] for i in range(start_idx, end_idx + 1)])  # FIXME: index 问题
             # 暂时希望如此，如果出错了再想办法
             assert len(self.qrc) == len(self.grouped_raw_pitch)
             self.grouped_pitch = copy.deepcopy(self.grouped_raw_pitch)
@@ -149,7 +150,8 @@ class LyricsMatch:
 
         def read_wav(self):
             # 还是在test阶段
-            y, fs = librosa.load(self.base_dir + r"/audios/separate/{}/vocals.wav".format(self.number), dtype=float, sr=None)
+            y, fs = librosa.load(self.base_dir + r"/audios/separate/{}/vocals.wav".format(self.number), dtype=float,
+                                 sr=None)
             return y, fs
 
         @staticmethod
@@ -184,9 +186,9 @@ class LyricsMatch:
             ratio_list = []
             for idx in range(1, len(self.raw_qrc)):
                 pos = self.__idx_qrc2lrc[idx]
-                pre_pos = self.__idx_qrc2lrc[idx-1]
+                pre_pos = self.__idx_qrc2lrc[idx - 1]
                 lrc_dur = self.lrc[pos][0] - self.lrc[pre_pos][0]
-                qrc_dur = self.raw_qrc[idx][0][0] - self.raw_qrc[idx-1][0][0]
+                qrc_dur = self.raw_qrc[idx][0][0] - self.raw_qrc[idx - 1][0][0]
                 ratio_list.append(lrc_dur / qrc_dur)
             self.tempo_ratio = sum(ratio_list) / len(ratio_list)
 
@@ -255,7 +257,7 @@ class LyricsMatch:
             min_pos = lrc_next_start
             cursor = lrc_next_start  # cursor 位置不包含，左闭右开
             # TODO: 添加一个向左扫描的极限
-            left_most = lrc_start + int(self.raw_qrc[idx][0][1] * self.tempo_ratio * 0.8)  # qrc的该段的时长 * 0.8的余量
+            left_most = lrc_start + int(self.raw_qrc[idx][0][1] * self.tempo_ratio * 0.85)  # qrc的该段的时长 * 0.85的余量
             while cursor > left_most:  # TODO: 这个循环可以优化
                 # 截取 f0 audio
                 candidate = self.f0[lrc_start // 5: cursor // 5]
@@ -298,9 +300,9 @@ class LyricsMatch:
                     self.grouped_pitch[idx][i][0] = lrc_start
                     self.grouped_pitch[idx][i][1] = int(stretch_rate * self.grouped_pitch[idx][i][1])
                 else:
-                    self.grouped_pitch[idx][i][0] = self.grouped_pitch[idx][i-1][0] \
+                    self.grouped_pitch[idx][i][0] = self.grouped_pitch[idx][i - 1][0] \
                                                     + int((self.grouped_raw_pitch[idx][i][0]
-                                                           - self.grouped_raw_pitch[idx][i-1][0]) * stretch_rate)
+                                                           - self.grouped_raw_pitch[idx][i - 1][0]) * stretch_rate)
                     self.grouped_pitch[idx][i][1] = int(stretch_rate * self.grouped_pitch[idx][i][1])
 
         def save_qrc(self):
