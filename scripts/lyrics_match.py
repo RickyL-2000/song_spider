@@ -9,6 +9,7 @@ import numpy as np
 from dtw import *
 import copy
 import matplotlib.pylab as plt
+import scipy.signal as signal
 
 
 # %%
@@ -147,6 +148,8 @@ class LyricsMatch:
         def load_f0(self):
             y, fs = self.read_wav()
             self.f0, self.t = self.extract_f0(y, fs)
+            # 中值滤波：参数=3
+            self.f0 = signal.medfilt(self.f0, 5)
 
         def read_wav(self):
             # 还是在test阶段
@@ -283,23 +286,19 @@ class LyricsMatch:
             cursor = lrc_next_start  # cursor 位置不包含，左闭右开
 
             # 扫描前plot
+            '''
             plt.plot(self.t[lrc_start // 5: cursor // 5], self.f0[lrc_start // 5: cursor // 5], label='f0')
             plt.plot(notes_list[:, 0], notes_list[:, 1], label='score')
-            plt.title("raw data before optimizing (with lowering an octave)")
+            plt.title("raw data before optimizing (with lowering an octave and medfilt = 5)")
             plt.legend()
             plt.show()
+            '''
 
             # 添加一个向左扫描的极限
             left_most = lrc_start + int(self.raw_qrc[idx][0][1] * self.tempo_ratio * 0.85)  # qrc的该段的时长 * 0.85的余量
             while cursor > left_most:  # TODO: 这个循环可以优化
                 # 截取 f0 audio
                 candidate = self.f0[lrc_start // 5: cursor // 5]
-
-                # plot start
-                # plt.plot(self.t[lrc_start // 5: cursor // 5], candidate, label='f0')
-                # plt.plot(notes_list[:, 0], notes_list[:, 1], label='score')
-                # plt.show()
-                # plot end
 
                 distance = self.get_distance(notes_list[:, 1], candidate)
                 if distance < min_distance:
@@ -339,13 +338,14 @@ class LyricsMatch:
                     self.grouped_pitch[idx][i][1] = int(stretch_rate * self.grouped_pitch[idx][i][1])
 
             # 拉伸后plot
+            '''
             notes_list_stretched = self.score2freq(self.grouped_pitch[idx], self.qrc[idx][0][0])
             plt.plot(self.t[lrc_start // 5: cursor // 5], self.f0[lrc_start // 5: cursor // 5], label='f0')
             plt.plot(notes_list_stretched[:, 0], notes_list_stretched[:, 1], label='score_stretched')
-            plt.title("data after stretching")
+            plt.title("data after stretching (lower 1 octave and medfilt = 5)")
             plt.legend()
             plt.show()
-            pass
+            '''
 
         def save_qrc(self):
             """
