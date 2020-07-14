@@ -218,6 +218,30 @@ class LyricsMatch:
             alignment = dtw(seq1, seq2)
             return alignment.normalizedDistance
 
+        def score2freq(self, sentence, start):
+            """
+            把(raw_)grouped_pitch中的一句乐谱转换成5ms为间隔的频谱
+            :param sentence: 需要转换的某乐句，需要是(raw_)grouped_pitch的元素
+            :param start: 该句开始的时间
+            :return: np.array(notes_list)  格式：[秒，频率]
+            """
+            notes_list = []  # 格式：[秒，频率]
+            time_idx = start // 5 * 5  # 以5ms为单位
+            note_idx = 0  # 在当前乐句的初始idx是0
+            sentence_len = len(sentence)
+            # cur_f = self.pitch2freq(self.grouped_raw_pitch[idx][0][2] - 12)     # 降八度
+            while note_idx < sentence_len:
+                cur_f = 0.0
+                while time_idx < sentence[note_idx][0]:
+                    notes_list.append([time_idx / 1000, cur_f])
+                    time_idx += 5  # 以 5ms 为间隔
+                cur_f = self.pitch2freq(sentence[note_idx][2] - 12)  # 降八度
+                while time_idx < sentence[note_idx][0] + sentence[note_idx][1]:
+                    notes_list.append([time_idx / 1000, cur_f])
+                    time_idx += 5
+                note_idx += 1
+            return np.array(notes_list)  # 格式：[秒，频率]
+
         def stretch(self, idx, position):
             """
             将qrc中的歌词的时间戳线性变换以对齐audio的lrc，存放在self.qrc中。
@@ -235,27 +259,36 @@ class LyricsMatch:
                 lrc_next_start = self.lrc[position + 1][0]
 
             # 制作频率乐谱
-            notes_list = []  # 格式：[秒，频率]
-            time_idx = qrc_start // 5 * 5  # 以5ms为单位
-            note_idx = 0  # 在当前乐句的初始idx是0
-            sentence_len = len(self.grouped_raw_pitch[idx])
-            # cur_f = self.pitch2freq(self.grouped_raw_pitch[idx][0][2] - 12)     # 降八度
-            while note_idx < sentence_len:
-                cur_f = 0.0
-                while time_idx < self.grouped_raw_pitch[idx][note_idx][0]:
-                    notes_list.append([time_idx / 1000, cur_f])
-                    time_idx += 5  # 以 5ms 为间隔
-                cur_f = self.pitch2freq(self.grouped_raw_pitch[idx][note_idx][2] - 12)  # 降八度
-                while time_idx < self.grouped_raw_pitch[idx][note_idx][0] + self.grouped_raw_pitch[idx][note_idx][1]:
-                    notes_list.append([time_idx / 1000, cur_f])
-                    time_idx += 5
-                note_idx += 1
-            notes_list = np.array(notes_list)
+            # notes_list = []  # 格式：[秒，频率]
+            # time_idx = qrc_start // 5 * 5  # 以5ms为单位
+            # note_idx = 0  # 在当前乐句的初始idx是0
+            # sentence_len = len(self.grouped_raw_pitch[idx])
+            # # cur_f = self.pitch2freq(self.grouped_raw_pitch[idx][0][2] - 12)     # 降八度
+            # while note_idx < sentence_len:
+            #     cur_f = 0.0
+            #     while time_idx < self.grouped_raw_pitch[idx][note_idx][0]:
+            #         notes_list.append([time_idx / 1000, cur_f])
+            #         time_idx += 5  # 以 5ms 为间隔
+            #     cur_f = self.pitch2freq(self.grouped_raw_pitch[idx][note_idx][2] - 12)  # 降八度
+            #     while time_idx < self.grouped_raw_pitch[idx][note_idx][0] + self.grouped_raw_pitch[idx][note_idx][1]:
+            #         notes_list.append([time_idx / 1000, cur_f])
+            #         time_idx += 5
+            #     note_idx += 1
+            # notes_list = np.array(notes_list)  # 格式：[秒，频率]
+            notes_list = self.score2freq(self.grouped_raw_pitch[idx], qrc_start)
 
             # 开始扫描，通过音频确定lrc一段歌词的结尾
             min_distance = float('inf')
             min_pos = lrc_next_start
             cursor = lrc_next_start  # cursor 位置不包含，左闭右开
+
+            # 扫描前plot
+            plt.plot(self.t[lrc_start // 5: cursor // 5], self.f0[lrc_start // 5: cursor // 5], label='f0')
+            plt.plot(notes_list[:, 0], notes_list[:, 1], label='score')
+            plt.title("raw data before optimizing (with lowering an octave)")
+            plt.legend()
+            plt.show()
+
             # 添加一个向左扫描的极限
             left_most = lrc_start + int(self.raw_qrc[idx][0][1] * self.tempo_ratio * 0.85)  # qrc的该段的时长 * 0.85的余量
             while cursor > left_most:  # TODO: 这个循环可以优化
@@ -304,6 +337,15 @@ class LyricsMatch:
                                                     + int((self.grouped_raw_pitch[idx][i][0]
                                                            - self.grouped_raw_pitch[idx][i - 1][0]) * stretch_rate)
                     self.grouped_pitch[idx][i][1] = int(stretch_rate * self.grouped_pitch[idx][i][1])
+
+            # 拉伸后plot
+            notes_list_stretched = self.score2freq(self.grouped_pitch[idx], self.qrc[idx][0][0])
+            plt.plot(self.t[lrc_start // 5: cursor // 5], self.f0[lrc_start // 5: cursor // 5], label='f0')
+            plt.plot(notes_list_stretched[:, 0], notes_list_stretched[:, 1], label='score_stretched')
+            plt.title("data after stretching")
+            plt.legend()
+            plt.show()
+            pass
 
         def save_qrc(self):
             """
