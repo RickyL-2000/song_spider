@@ -256,7 +256,7 @@ class LyricsMatch:
             min_distance = float('inf')
             min_pos = lrc_next_start
             cursor = lrc_next_start  # cursor 位置不包含，左闭右开
-            # TODO: 添加一个向左扫描的极限
+            # 添加一个向左扫描的极限
             left_most = lrc_start + int(self.raw_qrc[idx][0][1] * self.tempo_ratio * 0.85)  # qrc的该段的时长 * 0.85的余量
             while cursor > left_most:  # TODO: 这个循环可以优化
                 # 截取 f0 audio
@@ -272,7 +272,7 @@ class LyricsMatch:
                 if distance < min_distance:
                     min_distance = distance
                     min_pos = cursor // 5 * 5 - 5  # cursor 位置不包含
-                cursor -= 5
+                cursor -= 100
             lrc_end = min_pos  # lrc结束时间，单位ms
 
             # 开始拉伸歌词
