@@ -221,6 +221,12 @@ class LyricsMatch:
             alignment = dtw(seq1, seq2)
             return alignment.normalizedDistance
 
+        @staticmethod
+        def plot_alignment(seq1, seq2):
+            alignment = dtw(seq1, seq2, keep_internals=True)
+            alignment.plot(type="threeway")
+            alignment.plot(type="twoway", offset=-200)
+
         def score2freq(self, sentence, start):
             """
             把(raw_)grouped_pitch中的一句乐谱转换成5ms为间隔的频谱
