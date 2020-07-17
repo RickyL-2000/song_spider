@@ -45,7 +45,7 @@
     * crawler_log.csv - 记录了有哪些音频已经成功下载
 * audios - 存放所有音频文件
     * separate - 存放用spleeter输出的vocal和bgm
-        * -- 命令：spleeter separate -i "E:\song_spider\audios\raw_audios\18291.mp3" -o ..\audios\separate\
+        * -- 命令：conda进入scripts目录后: spleeter separate -i "E:\song_spider\audios\raw_audios\18291.mp3" -o ..\audios\separate\
     * raw_audios - 存放所有未经处理的音频文件
         * --
 * processed_data - 存放处理后的文本数据
