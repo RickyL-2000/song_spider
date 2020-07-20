@@ -19,6 +19,8 @@ if __name__ == "__main__":
 # import urllib3
 from airtest.core.api import *
 from poco.drivers.android.uiautomation import AndroidUiautomationPoco
+import pyperclip
+
 poco = AndroidUiautomationPoco(use_airtest_input=True, screenshot_each_action=False)
 
 # %%
@@ -39,16 +41,35 @@ candidate.poco(name="com.tencent.karaoke:id/cw1").click()   # 点击目标项，
 
 cnt = 0     # 要5首歌
 visited = []    # 已经下载了的作品的用户名
+url_list = []
 parent = poco(name="com.tencent.karaoke:id/fyn")
-while cnt < 5:
+while cnt <= 5:
     work_list = parent.poco(name="android.widget.RelativeLayout")  # 当前页面的推荐作品
     for work in work_list:
-        if work.poco(name="com.tencent.karaoke:id/dfv").get_text() in visited:  # 用户名
+        cur_usr_name = work.poco(name="com.tencent.karaoke:id/dfv").get_text()
+        if cur_usr_name in visited:  # 用户名
             continue
-        work.poco(name="com.tencent.karaoke:id/dg8").click()    # 进入该用户的歌曲页面
+        visited.append(cur_usr_name)
+        work.poco(name="com.tencent.karaoke:id/b2n").click()    # 进入该用户的歌曲页面
 
         # 进入页面
-        poco(name="com.tencent.karaoke:id/ci").click()  # 点击分享 FIXME: 这里咋点了个赞？？？
-        poco.swipe([1000, 1700], [100, 1700])
+        poco(name="com.tencent.karaoke:id/u1").click()  # 点击分享
+        # poco.swipe([500, 1000], [300, 1000])
+        poco(name="com.tencent.karaoke:id/eou").poco(name="com.tencent.karaoke:id/hh3")[-1].click()     # 点复制链接
+
+        url_list.append(pyperclip.paste())
+
+        cnt += 1
 
         poco(name="返回").click()
+
+    swipe((432, 1455), (432, 300))
+
+# %%
+swipe((432, 1455), (432, 300))
+
+# %%
+parent = poco(name="com.tencent.karaoke:id/fyn")
+work_list = poco("android.widget.LinearLayout").offspring("android:id/content").offspring("com.tencent.karaoke:id/gpt").offspring("com.tencent.karaoke:id/fyq").offspring("com.tencent.karaoke:id/fyo").child("android.widget.RelativeLayout")  # 当前页面的推荐作品
+temp = [work.poco(name="com.tencent.karaoke:id/dfv").get_text() for work in work_list]
+
