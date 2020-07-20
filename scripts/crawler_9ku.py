@@ -26,10 +26,10 @@ class Crawler_9ku:
         self.all_data_num = 72898
         self.batch_size = 10
 
-        self.get_titles()
-        self.get_singers()
+        self.load_titles()
+        self.load_singers()
 
-    def get_titles(self):
+    def load_titles(self):
         with open(self.base_dir + "/raw_data/raw_titles.txt", 'r', encoding='utf-8') as titles:
             cnt = 0
             self.titles.append(None)    # NOTE
@@ -39,7 +39,7 @@ class Crawler_9ku:
                 cnt += 1
                 self.titles.append([cnt, title.strip()])    # 从1开始
 
-    def get_singers(self):
+    def load_singers(self):
         with open(self.base_dir + "/raw_data/raw_singers.txt", 'r', encoding='utf-8') as singers:
             cnt = 0
             self.singers.append(None)   # NOTE
@@ -135,7 +135,7 @@ class Crawler_9ku:
                 t = int(float(t[0]) * 60000 + float(t[1]) * 1000)
                 writer.writerow([t, lrc_dict[key]])
 
-    def init_log(self):
+    def load_log(self):
         if os.path.getsize(self.base_dir + "/helpers/crawler_log.csv"):
             with open(self.base_dir + "helpers/crawler_log.csv", 'r') as log:
                 reader = csv.reader(log)
@@ -159,13 +159,13 @@ class Crawler_9ku:
         :return:
         """
         for i in range(1, self.all_data_num + 1, self.batch_size):  # NOTE: 从1开始
-            self.init_log()
+            self.load_log()
             for j in range(i, min(i + self.batch_size, self.all_data_num + 1)):
                 if self.titles[j][1][0].isdigit():
                     continue
                 if self.log[j]:     # have downloaded
                     continue
-                self.query(self.titles[j], target='audio')
+                self.query(self.titles[j], target='audio')  # TODO: 检查：log是否被修改了？
             self.write_log()
 
     def main_lyrics(self):
