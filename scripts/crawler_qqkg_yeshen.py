@@ -6,9 +6,7 @@
 # %%
 """
 爬取全民K歌
-
 设备：夜神模拟器 安卓5.0
-
 1. 先通过search request获取该歌曲的列表，用rfind方法找到该歌手的isongmid
 2.
 """
@@ -22,6 +20,10 @@ from poco.drivers.android.uiautomation import AndroidUiautomationPoco
 import pyperclip
 import codecs
 import csv
+from bs4 import BeautifulSoup as bs4
+import os
+import requests
+from typing import List
 
 poco = AndroidUiautomationPoco(use_airtest_input=True, screenshot_each_action=False)
 
@@ -35,12 +37,14 @@ class CrawlerQQkg:
     def __init__(self, base_dir):
         self.base_dir = base_dir
         self.all_data_num = 72898
+        self.headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:61.0) Gecko/20100101 Firefox/61.0"}
 
         self.titles = []
         self.singers = []
-        self.url_list = [None] * (self.all_data_num + 1)    # NOTE: 从1开始
+        self.url_list: List[List] = [None] * (self.all_data_num + 1)    # NOTE: 从1开始; 元素格式为该歌曲不同用户投稿的List
 
         self.url_log = []   # 0为未下载，大于零则为获得的链接的数量
+        self.audio_log = []
 
     def load_titles(self):
         with open(self.base_dir + "/raw_data/raw_titles.txt", 'r', encoding='utf-8') as titles:
@@ -62,7 +66,7 @@ class CrawlerQQkg:
                 cnt += 1
                 self.singers.append([cnt, singer])
 
-    def load_log(self):
+    def load_url_log(self):
         if os.path.getsize(self.base_dir + "/helpers/crawler_qqkg_url_log.csv"):
             with open(self.base_dir + "helpers/crawler_qqkg_url_log.csv", 'r') as log:
                 reader = csv.reader(log)
@@ -72,7 +76,7 @@ class CrawlerQQkg:
         else:
             self.url_log = [0] * (72898 + 1)
 
-    def write_log(self):
+    def write_url_log(self):
         with open(self.base_dir + "helpers/crawler_qqkg_url_log.csv", 'w') as log:
             writer = csv.writer(log)
             # for status in self.log:
@@ -158,12 +162,61 @@ class CrawlerQQkg:
 
     def get_url(self, batch_size):
         for i in range(1, self.all_data_num + 1, batch_size):
-            self.load_log()
+            self.load_url_log()
             for j in range(i, min(i + batch_size, self.all_data_num + 1)):
                 if self.titles[j][1][0].isdigit():
                     continue
                 if self.url_log[j]:     # have downloaded
                     continue
                 self.query(j)
-            self.write_log()
+            self.write_url_log()
 
+    def load_audio_log(self):
+        if os.path.getsize(self.base_dir + "/helpers/crawler_qqkg_audio_log.csv"):
+            with open(self.base_dir + "helpers/crawler_qqkg_audio_log.csv", 'r') as log:
+                reader = csv.reader(log)
+                self.audio_log = [0]  # NOTE: 从1开始，第零个只是placeholder
+                for status in reader:
+                    self.audio_log.append(status)
+        else:
+            self.audio_log = [0] * (72898 + 1)
+
+    def write_audio_log(self):
+        with open(self.base_dir + "helpers/crawler_qqkg_audio_log.csv", 'w') as log:
+            writer = csv.writer(log)
+            # for status in self.log:
+            #     writer.writerow(status)
+            for i in range(1, len(self.audio_log)):
+                writer.writerow(self.audio_log[i])
+
+    def download(self, url, idx, j):
+        """
+        爬取响应的音频数据
+        :param url: 该歌曲资源的链接
+        :param idx: 该歌曲的索引，从1开始
+        :param j: 是该歌曲的第几首歌，从1开始
+        """
+        html = requests.get(url, headers=self.headers).text
+        soup = bs4(html, 'html.parser')
+        target = soup.find('audio', id="player")
+        src_url = target['src']
+        try:
+            response = requests.get(src_url, headers=self.headers, stream=True)
+            with open(self.base_dir + "/audios/raw_audios/{}({}).mp3".format(idx, j), 'wb') as song_file:
+                for chunk in response.iter_content(chunk_size=512):
+                    song_file.write(chunk)
+            self.audio_log[idx] += 1    # NOTE: 从1开始
+            print("{}({}) --- successfully downloaded".format(idx, j))
+        except:
+            # self.log[title[0]] = 0
+            print("{}({}) --- downloading failed".format(idx, j))
+
+    def get_audio(self, batch_size):
+        self.load_url_list()
+        for i in range(1, self.all_data_num + 1, batch_size):
+            self.load_audio_log()
+            for idx in range(i, min(i + batch_size, self.all_data_num + 1)):
+                if self.url_list[idx] is not None and len(self.url_list) > 0:
+                    for j in range(len(self.url_list[idx])):
+                        self.download(self.url_list[idx][j], idx, j)
+            self.write_audio_log()
