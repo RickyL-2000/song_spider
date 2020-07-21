@@ -43,7 +43,7 @@ class CrawlerQQkg:
         self.singers = []   # 元素格式：[idx, 歌手名称]
         self.url_list: List[List] = [None] * (self.all_data_num + 1)    # NOTE: 从1开始; 元素格式为该歌曲不同用户投稿的List
 
-        self.url_log = []   # 0为未下载，大于零则为获得的链接的数量
+        self.url_log = []   # 0为未下载，大于零则为获得的链接的数量，从1开始，最后多一个数据，为上次下载断掉时的位置
         self.audio_log = []
 
         # init methods
@@ -77,27 +77,27 @@ class CrawlerQQkg:
                 for status in log.readlines():
                     self.url_log.append(int(status.strip()))
         else:
-            self.url_log = [0] * (72898 + 1)
+            self.url_log = [0] * (72898 + 2)    # 从1开始，最后多一个中断信号
+        return self.url_log[-1]
 
-    def write_url_log(self):
+    def write_url_log(self, break_point):
         with open(self.base_dir + "/helpers/crawler_qqkg_url_log.txt", 'w') as log:
             for i in range(1, len(self.url_log)):
-                log.write(self.url_log[i])
-                log.write('\n')
+                log.write(str(self.url_log[i]) + '\n')
+            log.write(str(break_point) + '\n')
 
     def load_url_list(self):
-        idx = 1
         if os.path.getsize(self.base_dir + "/raw_data/url_list.txt"):
+            self.url_list = [None]
             with open(self.base_dir + "/raw_data/url_list.txt", 'r') as f:
                 for line in f.readlines():
-                    self.url_list[idx] = line.strip().split()
-                    idx += 1
+                    self.url_list.append(line.strip().split())
 
     def write_url_list(self):
         with open(self.base_dir + "/raw_data/url_list.txt", 'w') as f:
-            for song in self.url_list:
-                if song is not None and len(song) > 0:
-                    for url in song:
+            for i in range(1, len(self.url_list)):
+                if self.url_list[i] is not None and len(self.url_list[i]) > 0:
+                    for url in self.url_list[i]:
                         f.write(url + ' ')
                 f.write('\n')
 
@@ -106,24 +106,28 @@ class CrawlerQQkg:
         利用poco模拟屏幕点击，在全民K歌上爬取歌曲的分享链接
         :param idx: 歌曲的索引
         """
-        # poco(name="com.tencent.karaoke:id/gvd").click()  # 点击搜索框 NOTE: 该操作移至该函数外完成，节省时间
-        poco(name="com.tencent.karaoke:id/g02").set_text(self.titles[idx][1])  # 输入歌名
-        poco(name="com.tencent.karaoke:id/gvk").click()  # 点击“搜索”
-        candidate_list = poco(name="com.tencent.karaoke:id/cvx")  # 获取推荐
-        singer_list = []
-        for candidate in candidate_list:
-            singer = candidate.offspring(name="com.tencent.karaoke:id/cw6").get_text()
-            if singer[-3:] == " · ":
-                singer = singer[:-3]
-            # print(singer)
-            singer_list.append(singer)
+        try:
+            # poco(name="com.tencent.karaoke:id/gvd").click()  # 点击搜索框 NOTE: 该操作移至该函数外完成，节省时间
+            poco(name="com.tencent.karaoke:id/g02").set_text(self.titles[idx][1])  # 输入歌名
+            poco(name="com.tencent.karaoke:id/gvk").click()  # 点击“搜索”
+            candidate_list = poco(name="com.tencent.karaoke:id/cvx")  # 获取推荐
+        # except:
+            # return  # 以防止出现各种奇怪的无法预料的问题
 
-        i = singer_list.index(self.singers[idx][1].strip())
+        # try:
+            singer_list = []
+            for candidate in candidate_list:
+                singer = candidate.offspring(name="com.tencent.karaoke:id/cw6").get_text()
+                if singer[-3:] == " · ":
+                    singer = singer[:-3]
+                # print(singer)
+                singer_list.append(singer)
 
-        if i >= 0:
+            i = singer_list.index(self.singers[idx][1].strip())
             poco(name="com.tencent.karaoke:id/cvx")[i].click()
-        else:
-            poco(name="com.tencent.karaoke:id/cvx")[0].click()
+        except:
+            # poco(name="com.tencent.karaoke:id/cvx")[0].click()
+            return  # 没有该歌手 （没有该歌曲）
 
         poco(name="总榜").click()  # 点击总榜
 
@@ -143,37 +147,40 @@ class CrawlerQQkg:
             if flag >= 3:   # 可能出现了意想不到的情况导致cnt不满足要求但是陷入死循环，此时放弃
                 break
 
-            for work in work_list:
-                cur_usr_name = work.get_text()
-                if cur_usr_name in visited or cur_usr_name[-1] == ' ':  # 用户名
-                    continue
-                visited.append(cur_usr_name)
-                work.click()  # 进入该用户的歌曲页面
+            try:    # 我佛了，为什么之前的检查过了这里会不过？
+                for work in work_list:
+                    cur_usr_name = work.get_text()
+                    if cur_usr_name in visited or cur_usr_name[-1] == ' ':  # 用户名
+                        continue
+                    visited.append(cur_usr_name)
+                    work.click()  # 进入该用户的歌曲页面
 
-                # 进入页面
-                try:
-                    poco(name="com.tencent.karaoke:id/u1").click()  # 点击分享
-                except:
-                    continue
+                    # 进入页面
+                    try:
+                        poco(name="com.tencent.karaoke:id/u1").click()  # 点击分享
+                    except:
+                        continue
 
-                # 该用户可能已经不存在
-                try:
-                    # poco.swipe([500, 1000], [300, 1000])
-                    poco(name="com.tencent.karaoke:id/eou").poco(name="com.tencent.karaoke:id/hh3")[-1].click()  # 点复制链接
-                    if len(ret) > 0:
-                        assert pyperclip.paste() != ret[-1]    # 防止各种奇奇怪怪的问题
-                except:
+                    # 该用户可能已经不存在
+                    try:
+                        # poco.swipe([500, 1000], [300, 1000])
+                        poco(name="com.tencent.karaoke:id/eou").poco(name="com.tencent.karaoke:id/hh3")[-1].click()  # 点复制链接
+                        if len(ret) > 0:
+                            assert pyperclip.paste() != ret[-1]    # 防止各种奇奇怪怪的问题
+                    except:
+                        keyevent("KEYCODE_BACK")
+                        continue
+
+                    ret.append(pyperclip.paste())
+                    cnt += 1
+
+                    # poco(name="返回").click()
                     keyevent("KEYCODE_BACK")
-                    continue
 
-                ret.append(pyperclip.paste())
-                cnt += 1
-
-                # poco(name="返回").click()
-                keyevent("KEYCODE_BACK")
-
-                if cnt >= maxNum:
-                    break
+                    if cnt >= maxNum:
+                        break
+            except:
+                break
 
             if cnt < maxNum:
                 swipe((432, 1455), (432, 700))
@@ -187,19 +194,24 @@ class CrawlerQQkg:
         # poco(name="返回").click()
         keyevent("KEYCODE_BACK")
 
-    def get_url(self, batch_size):
+    def get_url(self, batch_size, resume=True):
         for i in range(1, self.all_data_num + 1, batch_size):
-            self.load_url_log()
+            if resume:
+                i = self.load_url_log() + batch_size
+                resume = False
             self.load_url_list()
-            poco(name="com.tencent.karaoke:id/gvd").click()  # 点击搜索框
+            try:
+                poco(name="com.tencent.karaoke:id/gvd").click()  # 点击搜索框
+            except:
+                pass
             for j in range(i, min(i + batch_size, self.all_data_num + 1)):
                 if self.titles[j][1][0].isdigit():
                     continue
                 if self.url_log[j]:     # have downloaded
                     continue
                 self.query(j)
-            self.write_url_log()
             self.write_url_list()
+            self.write_url_log(i)   # 该breakpoint是该批次的开始位置
 
     def load_audio_log(self):
         if os.path.getsize(self.base_dir + "/helpers/crawler_qqkg_audio_log.txt"):
@@ -213,8 +225,7 @@ class CrawlerQQkg:
     def write_audio_log(self):
         with open(self.base_dir + "/helpers/crawler_qqkg_audio_log.txt", 'w') as log:
             for i in range(1, len(self.audio_log)):
-                log.write(self.audio_log[i])
-                log.write('\n')
+                log.write(str(self.audio_log[i]) + '\n')
 
     def download(self, url, idx, j):
         """
@@ -253,10 +264,11 @@ class CrawlerQQkg:
     def test(self):
         self.load_url_log()
         self.write_url_log()
+        self.load_url_log()
 
 
 # %%
 if __name__ == "__main__":
     crawler = CrawlerQQkg("E:/song_spider")
-    # crawler.get_url(5)
-    crawler.test()
+    crawler.get_url(10)
+    # crawler.test()
