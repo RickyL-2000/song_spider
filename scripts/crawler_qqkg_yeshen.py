@@ -71,22 +71,19 @@ class CrawlerQQkg:
                 self.singers.append([cnt, singer])
 
     def load_url_log(self):
-        if os.path.getsize(self.base_dir + "/helpers/crawler_qqkg_url_log.csv"):
-            with open(self.base_dir + "/helpers/crawler_qqkg_url_log.csv", 'r') as log:
-                reader = csv.reader(log)
+        if os.path.getsize(self.base_dir + "/helpers/crawler_qqkg_url_log.txt"):
+            with open(self.base_dir + "/helpers/crawler_qqkg_url_log.txt", 'r') as log:
                 self.url_log = [0]  # NOTE: 从1开始，第零个只是placeholder
-                for status in reader:
-                    self.url_log.append(status)
+                for status in log.readlines():
+                    self.url_log.append(int(status.strip()))
         else:
             self.url_log = [0] * (72898 + 1)
 
     def write_url_log(self):
-        with open(self.base_dir + "/helpers/crawler_qqkg_url_log.csv", 'w') as log:
-            writer = csv.writer(log)
-            # for status in self.log:
-            #     writer.writerow(status)
+        with open(self.base_dir + "/helpers/crawler_qqkg_url_log.txt", 'w') as log:
             for i in range(1, len(self.url_log)):
-                writer.writerow(self.url_log[i])
+                log.write(self.url_log[i])
+                log.write('\n')
 
     def load_url_list(self):
         idx = 1
@@ -205,22 +202,19 @@ class CrawlerQQkg:
             self.write_url_list()
 
     def load_audio_log(self):
-        if os.path.getsize(self.base_dir + "/helpers/crawler_qqkg_audio_log.csv"):
-            with open(self.base_dir + "/helpers/crawler_qqkg_audio_log.csv", 'r') as log:
-                reader = csv.reader(log)
+        if os.path.getsize(self.base_dir + "/helpers/crawler_qqkg_audio_log.txt"):
+            with open(self.base_dir + "/helpers/crawler_qqkg_audio_log.txt", 'r') as log:
                 self.audio_log = [0]  # NOTE: 从1开始，第零个只是placeholder
-                for status in reader:
-                    self.audio_log.append(status)
+                for status in log.readlines():
+                    self.audio_log.append(int(status.strip()))
         else:
             self.audio_log = [0] * (72898 + 1)
 
     def write_audio_log(self):
-        with open(self.base_dir + "/helpers/crawler_qqkg_audio_log.csv", 'w') as log:
-            writer = csv.writer(log)
-            # for status in self.log:
-            #     writer.writerow(status)
+        with open(self.base_dir + "/helpers/crawler_qqkg_audio_log.txt", 'w') as log:
             for i in range(1, len(self.audio_log)):
-                writer.writerow(self.audio_log[i])
+                log.write(self.audio_log[i])
+                log.write('\n')
 
     def download(self, url, idx, j):
         """
