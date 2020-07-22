@@ -24,6 +24,7 @@ from bs4 import BeautifulSoup as bs4
 import os
 import requests
 from typing import List
+import time
 
 poco = AndroidUiautomationPoco(use_airtest_input=True, screenshot_each_action=False)
 
@@ -78,7 +79,7 @@ class CrawlerQQkg:
                     self.url_log.append(int(status.strip()))
         else:
             self.url_log = [0] * (72898 + 2)    # 从1开始，最后多一个中断信号
-        return self.url_log[-1]
+        return self.url_log.pop()
 
     def write_url_log(self, break_point):
         with open(self.base_dir + "/helpers/crawler_qqkg_url_log.txt", 'w') as log:
@@ -177,6 +178,8 @@ class CrawlerQQkg:
                     # poco(name="返回").click()
                     keyevent("KEYCODE_BACK")
 
+                    time.sleep(0.1)
+
                     if cnt >= maxNum:
                         break
             except:
@@ -194,18 +197,25 @@ class CrawlerQQkg:
         # poco(name="返回").click()
         keyevent("KEYCODE_BACK")
 
+        time.sleep(0.1)
+
     def get_url(self, batch_size, resume=True):
-        for i in range(1, self.all_data_num + 1, batch_size):
-            if resume:
-                i = self.load_url_log() + batch_size
-                resume = False
+        begin = 1
+        if resume:
+            begin = self.load_url_log() + batch_size
+        for i in range(begin, self.all_data_num + 1, batch_size):
+            self.load_url_log()
             self.load_url_list()
             try:
                 poco(name="com.tencent.karaoke:id/gvd").click()  # 点击搜索框
             except:
                 pass
             for j in range(i, min(i + batch_size, self.all_data_num + 1)):
-                if self.titles[j][1][0].isdigit():
+                try:
+                    if self.titles[j][1][0].isdigit():
+                        continue
+                except IndexError:
+                    print("There is a index error, j = ", j)
                     continue
                 if self.url_log[j]:     # have downloaded
                     continue
