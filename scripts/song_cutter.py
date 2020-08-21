@@ -1,22 +1,108 @@
 # %%
 import os
 import json
+import time
 from pydub import AudioSegment
 
-base_dir = os.getcwd()
+# %%
+def load_pitch():
+    """
+    载入所有歌曲的乐谱（音高）数据
+    :return: all_pitch 元素格式：all_pitch[i] = song_pitch
+                               song_pitch[i] = [start_time, last_time, pitch]
+    """
+    with open(base_dir + '/alldata.json', 'r', encoding='utf-8') as f:
+        all_pitch = [[]]    # index从1开始
+        for line in f.readlines():
+            json_line = json.loads(line)
+            raw_notes = json_line['note']
+
+            song_pitch = []
+            notes_list = raw_notes.split()
+            length = len(notes_list) // 3
+            for i in range(length):
+                song_pitch.append([int(notes_list[3 * i]), int(notes_list[3 * i + 1]), int(notes_list[3 * i + 2])])
+
+            all_pitch.append(song_pitch)
+
+    return all_pitch
+
+# %%
+def pitch_grouping(all_pitch, all_qrc, all_data_num, threshold=250):
+    """
+    将所有属于一句歌词的音符group起来
+    :param all_pitch: 未group过的音符list
+    :param all_qrc: 所有的歌词数据
+    :param all_data_num: 总的歌曲数量(72898)
+    :param threshold: 用于定位的阈值，默认250ms
+    :return: all_grouped_pitch 元素格式：all_grouped_pitch[i] = song_grouped_pitch
+                                       song_grouped_pitch[i] = group  # 一个group就是一句乐句
+                                       group[i] = [start_time, last_time, pitch]
+    """
+    # NOTE: 如果有不归属于任何乐句的音高，就归为前一句
+    all_grouped_pitch = [[]]
+    for k in range(1, all_data_num):
+        song_qrc = all_qrc[k]
+        song_pitch = all_pitch[k]
+        song_grouped_pitch = []
+
+        pre_end_idx = -1
+        for i in range(len(song_qrc)):
+            start_time = song_qrc[i][0][0]
+            end_time = song_qrc[i][1][-1][0]    # 结束字符的开始时间
+            start_idx = pre_end_idx + 1
+            end_idx = start_idx + 1
+
+            min_dist = float('inf')
+            while start_idx < len(song_pitch) and abs(song_pitch[start_idx][0] - start_time) > threshold:
+                dist = abs(song_pitch[start_idx][0] - start_time)
+                if dist < min_dist:
+                    min_dist = dist
+                    start_idx += 1
+                else:
+                    start_idx -= 1
+                    break
+            min_dist = float('inf')
+            while end_idx < len(song_pitch) and abs(song_pitch[end_idx][0] - end_time) > threshold:
+                dist = abs(song_pitch[end_idx][0] - end_time)
+                if dist < min_dist:
+                    min_dist = dist
+                    end_idx += 1
+                else:
+                    end_idx -= 1
+                    break
+
+            # 处理落单start
+            if pre_end_idx - start_idx > 1 and len(song_grouped_pitch) > 0:
+                # 如果在当前句和前一句之间有落单的note
+                for idx in range(pre_end_idx + 1, start_idx):
+                    song_grouped_pitch[-1].append(song_pitch[idx])
+            elif pre_end_idx - start_idx > 1 and len(song_grouped_pitch) == 0:
+                start_idx = 0
+            # 处理落单end
+            pre_end_idx = end_idx
+            song_grouped_pitch.append(
+                [song_pitch[i] for i in range(start_idx, end_idx + 1)]  # FIXME: index问题
+            )
+
+        assert len(song_qrc) == len(song_grouped_pitch)
+        all_grouped_pitch.append(song_grouped_pitch)
+
+    return all_grouped_pitch
+
 
 # %%
 def load_qrc():
     """
-    获取所有歌曲的歌词数据
+    载入所有歌曲的歌词数据
     :return: all_qrc 元素格式：all_qrc[i] = song_qrc
                              song_qrc[i] = [duration, seq, phrase]
-                             duration = [start, end]
-                             seq[i] = [start, end]
-                             phrase = 歌词
+                                    duration = [start_time, end_time]   # NOTE: end_time为结束字的结束时间
+                                    seq[i] = [start_time, last_time]
+                                    phrase = 歌词
     """
     with open(base_dir + '/alldata.json', 'r', encoding='utf-8') as f:
-        all_qrc = [[]]
+        all_qrc = [[]]  # index从1开始
         for line in f.readlines():
             json_line = json.loads(line)
             raw_qrc = json_line['qrc']
@@ -59,22 +145,68 @@ def load_qrc():
     return all_qrc
 
 # %%
-def get_phrases(song_id):
-    """
-    返回以[句开始时间，句结束时间]为元素的list
-    :param song_id:
-    :return:
-    """
-    pass
+def mkdir(path):
+    folder = os.path.exists(path)
+    if not folder:
+        os.makedirs(path)
+    return path
 
 # %%
-def song_cut():
-    start_point = 0
-    all_data_num = 72898
-    for i in range(start_point, all_data_num):
-        for j in range(3):
-            file_name = r"{}({}).mp3".format(i, j)
-            if os.path.getsize(base_dir + "/audios/raw_audios/" + file_name):
+def song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=500):
+    song_qrc = all_qrc[song_idx]
+    song_pitch = all_grouped_pitch[song_idx]
+    for i in range(3):
+        file_name = r"{}({}).mp3".format(song_idx, i)
+        if os.path.getsize(base_dir + "/audios/raw_audios/" + file_name):
+            try:
                 input_song = AudioSegment.from_mp3(base_dir + "/audios/raw_audios/" + file_name)
-                output_song = input_song[:]
-                output_song.export(base_dir + '/audios/phrases/')
+
+                # 创建新目录
+                mkdir(base_dir + '/audios/phrases/{}({})'.format(song_idx, i))
+
+                for j in range(len(song_qrc)):
+                    duration = song_qrc[j][0]
+                    output_segment = \
+                        input_song[max(duration[0] - threshold, 0): min(duration[1] + threshold, len(input_song))]
+
+                    # 存音频
+                    output_segment.export(base_dir + '/audios/phrases/{}({})/{}.mp3'.format(song_idx, i, j), format="mp3")
+
+                    # 存歌词和音符
+                    content = {
+                        'duration': [max(duration[0] - threshold, 0), min(duration[1] + threshold, len(input_song))],
+                        'qrc': {
+                            'seq': song_qrc[j][1],
+                            'phrase': song_qrc[j][2]
+                        },
+                        'pitch': song_pitch[j]
+                    }
+                    with open(base_dir + '/audios/phrases/{}({})/{}.json'.format(song_idx, i, j),
+                              'w', encoding='utf-8') as f:
+                        json.dump(content, f)
+
+                print("{}({}).mp3 --- successfully processed", end='  ')
+                print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+            except:
+                print("{}({}).mp3 --- processing failed", end='  ')
+                print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+
+# %%
+def main(all_data_num, start_point=0):
+    for song_idx in range(start_point, all_data_num):
+        song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=500)
+
+# %%
+def test():
+    song_idx = 2
+    song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=500)
+
+# %%
+if __name__ == "__main__":
+    base_dir = os.getcwd()
+    all_data_num = 72898
+    all_qrc = load_qrc()
+    all_pitch = load_pitch()
+    all_grouped_pitch = pitch_grouping(all_pitch, all_qrc, all_data_num, threshold=250)
+    test()
+    main(all_data_num, start_point=0)
