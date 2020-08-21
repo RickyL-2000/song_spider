@@ -5,7 +5,8 @@
 
 # %%
 """
-本版本用于在夜神模拟器上爬取链接，以及用于用链接爬取音频
+爬取全民K歌
+此版本适用于在mi6机器上爬取链接，不适用于爬取音频
 """
 
 # %%
@@ -23,7 +24,7 @@ import requests
 from typing import List
 import time
 
-# poco = AndroidUiautomationPoco(use_airtest_input=True, screenshot_each_action=False)
+poco = AndroidUiautomationPoco(use_airtest_input=True, screenshot_each_action=False)
 
 
 # %%
@@ -70,7 +71,7 @@ class CrawlerQQkg:
 
     def load_url_log(self):
         if os.path.getsize(self.base_dir + "/helpers/crawler_qqkg_url_log.txt"):
-            with open(self.base_dir + "/helpers/crawler_qqkg_url_log.txt", 'r') as log:
+            with open(self.base_dir + "/helpers/crawler_qqkg_url_log.txt", 'r', encoding='utf-8') as log:
                 self.url_log = [0]  # NOTE: 从1开始，第零个只是placeholder
                 for status in log.readlines():
                     self.url_log.append(int(status.strip()))
@@ -79,7 +80,7 @@ class CrawlerQQkg:
         return self.url_log.pop()
 
     def write_url_log(self, break_point):
-        with open(self.base_dir + "/helpers/crawler_qqkg_url_log.txt", 'w') as log:
+        with open(self.base_dir + "/helpers/crawler_qqkg_url_log.txt", 'w', encoding='utf-8') as log:
             for i in range(1, len(self.url_log)):
                 log.write(str(self.url_log[i]) + '\n')
             log.write(str(break_point) + '\n')
@@ -107,7 +108,7 @@ class CrawlerQQkg:
         try:
             # poco(name="com.tencent.karaoke:id/gvd").click()  # 点击搜索框 NOTE: 该操作移至该函数外完成，节省时间
             poco(name="com.tencent.karaoke:id/g02").set_text(self.titles[idx][1])  # 输入歌名
-            poco(name="com.tencent.karaoke:id/gvk").click()  # 点击“搜索”
+            poco(name="com.tencent.karaoke:id/gwa").click()  # 点击“搜索”
             candidate_list = poco(name="com.tencent.karaoke:id/cvx")  # 获取推荐
         # except:
             # return  # 以防止出现各种奇怪的无法预料的问题
@@ -123,16 +124,14 @@ class CrawlerQQkg:
 
             i = singer_list.index(self.singers[idx][1].strip())
             poco(name="com.tencent.karaoke:id/cvx")[i].click()
-        # except:
-            # poco(name="com.tencent.karaoke:id/cvx")[0].click()
-            # return  # 没有该歌手 （没有该歌曲）
-
-            poco(name="总榜").click()  # 点击总榜
-
         except:
-            return
+            # poco(name="com.tencent.karaoke:id/cvx")[0].click()
+            return  # 没有该歌手 （没有该歌曲）
 
-        cnt = 0  # 要5首歌
+        poco(name="总榜").click()  # 点击总榜
+        time.sleep(0.5)   # 等待用户刷出来
+
+        cnt = 0  # 要3首歌
         flag = 0    # 用于检测一个页面滑动的最大次数。假设最多滑动3次，超过自动放弃
         visited = []  # 已经下载了的作品的用户名
         ret = []    # 该首歌的url资源
@@ -159,20 +158,24 @@ class CrawlerQQkg:
                     # 进入页面
                     try:
                         poco(name="com.tencent.karaoke:id/u1").click()  # 点击分享
+                        swipe((700, 1555), (300, 1555))
                     except:
                         continue
 
                     # 该用户可能已经不存在
                     try:
                         # poco.swipe([500, 1000], [300, 1000])
-                        poco(name="com.tencent.karaoke:id/eou").poco(name="com.tencent.karaoke:id/hh3")[-1].click()  # 点复制链接
+                        poco(name="com.tencent.karaoke:id/eou").poco(name="com.tencent.karaoke:id/hjk")[-1].click()  # 点复制链接
+
+                        url = self.readURLCmd(self.execCmd(r"adb shell am broadcast -a clipper.get"))   # 通过clipper服务获取剪贴板内容
+
                         if len(ret) > 0:
-                            assert pyperclip.paste() != ret[-1]    # 防止各种奇奇怪怪的问题
+                            assert url != ret[-1]    # 防止各种奇奇怪怪的问题
                     except:
                         keyevent("KEYCODE_BACK")
                         continue
 
-                    ret.append(pyperclip.paste())
+                    ret.append(url)
                     cnt += 1
 
                     # poco(name="返回").click()
@@ -187,6 +190,7 @@ class CrawlerQQkg:
 
             if cnt < maxNum:
                 swipe((432, 1455), (432, 700))
+                time.sleep(0.1)
                 flag += 1
 
         if len(ret) > 0:
@@ -199,7 +203,23 @@ class CrawlerQQkg:
 
         time.sleep(0.1)
 
+    @staticmethod
+    def execCmd(cmd):
+        r = os.popen(cmd)
+        text = r.read()
+        r.close()
+        return text
+
+    @staticmethod
+    def readURLCmd(result):
+        start = result.find('"') + 1
+        end = result.find('"', start+2)
+        return result[start: end]
+
     def get_url(self, batch_size, resume=True):
+        # 初始化clipper广播服务
+        self.execCmd(r"adb shell am startservice ca.zgrs.clipper/.ClipboardService")
+
         begin = 1
         if resume:
             begin = self.load_url_log() + batch_size
@@ -207,7 +227,7 @@ class CrawlerQQkg:
             self.load_url_log()
             self.load_url_list()
             try:
-                poco(name="com.tencent.karaoke:id/gvd").click()  # 点击搜索框
+                poco(name="com.tencent.karaoke:id/gw4").click()  # 点击搜索框
             except:
                 pass
             for j in range(i, min(i + batch_size, self.all_data_num + 1)):
@@ -215,11 +235,12 @@ class CrawlerQQkg:
                     if self.titles[j][1][0].isdigit():
                         continue
                 except IndexError:
-                    print("There is a index error, j = ", j)    # FIXME: 这应该会出问题
+                    print("There is a index error, j = ", j)
                     continue
-                if self.url_log[j]:     # have downloaded
+                if self.url_log[j] > 1:     # have downloaded   TODO
                     continue
-                print(j)
+                print(j, end=' ')
+                print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
                 self.query(j)
             self.write_url_list()
             self.write_url_log(i)   # 该breakpoint是该批次的开始位置
@@ -231,14 +252,12 @@ class CrawlerQQkg:
                 for status in log.readlines():
                     self.audio_log.append(int(status.strip()))
         else:
-            self.audio_log = [0] * (72898 + 2)
-        return self.audio_log.pop()
+            self.audio_log = [0] * (72898 + 1)
 
-    def write_audio_log(self, breakpoint):
+    def write_audio_log(self):
         with open(self.base_dir + "/helpers/crawler_qqkg_audio_log.txt", 'w') as log:
             for i in range(1, len(self.audio_log)):
                 log.write(str(self.audio_log[i]) + '\n')
-            log.write(str(breakpoint) + '\n')
 
     def download(self, url, idx, j):
         """
@@ -247,65 +266,41 @@ class CrawlerQQkg:
         :param idx: 该歌曲的索引，从1开始
         :param j: 是该歌曲的第几首歌，从1开始
         """
+        html = requests.get(url, headers=self.headers).text
+        soup = bs4(html, 'html.parser')
+        target = soup.find('audio', id="player")
+        src_url = target['src']
         try:
-            html = requests.get(url, headers=self.headers).text
-            # soup = bs4(html, 'html.parser')
-            # target = soup.find('script', type='text/javascript')
-            start = html.find('playurl') + 10
-            end = html.find('"', start+1)
-            # src_url = target['src']
-            src_url = html[start:end]
             response = requests.get(src_url, headers=self.headers, stream=True)
             with open(self.base_dir + "/audios/raw_audios/{}({}).mp3".format(idx, j), 'wb') as song_file:
                 for chunk in response.iter_content(chunk_size=512):
                     song_file.write(chunk)
             self.audio_log[idx] += 1    # NOTE: 从1开始
-            print("{}({}) --- successfully downloaded".format(idx, j), end='  ')
-            print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+            print("{}({}) --- successfully downloaded".format(idx, j))
         except:
             # self.log[title[0]] = 0
-            print("{}({}) --- downloading failed".format(idx, j), end='  ')
-            print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+            print("{}({}) --- downloading failed".format(idx, j))
 
-    def get_audio(self, batch_size, resume=True):
-        begin = 1
-        if resume:
-            begin = self.load_audio_log() + batch_size
+    def get_audio(self, batch_size):
         self.load_url_list()
-        for i in range(begin, self.all_data_num + 1, batch_size):
-            print('loading log...')
+        for i in range(1, self.all_data_num + 1, batch_size):
             self.load_audio_log()
             for idx in range(i, min(i + batch_size, self.all_data_num + 1)):
-                if self.audio_log[idx] > 0:   # had downloaded
+                if self.audio_log[i] > 0:   # had downloaded
                     continue
-                if self.url_list[idx] is not None and len(self.url_list[idx]) > 0:
+                if self.url_list[idx] is not None and len(self.url_list) > 0:
                     for j in range(len(self.url_list[idx])):    # 对所有与该歌曲同名的歌曲进行爬取
                         self.download(self.url_list[idx][j], idx, j+1)  # j从1开始
-            print('saving log...')
-            self.write_audio_log(i)
+            self.write_audio_log()
 
     def test(self):
-        self.load_url_log()
-        self.write_url_log()
-        self.load_url_log()
+        self.load_url_list()
+        self.url_list = self.url_list[:68035] + [None] * (self.all_data_num + 1 - 68035)
+        self.write_url_list()
 
 
 # %%
 if __name__ == "__main__":
-    crawler = CrawlerQQkg("E:/song_spider")
-    # crawler.get_url(10)
+    crawler = CrawlerQQkg(r"E:/song_spider")
+    crawler.get_url(40)
     # crawler.test()
-    crawler.get_audio(40)
-
-
-# %%
-"""trytrywater"""
-temp = [None]
-with open(r"E:/song_spider/temp.txt") as f:
-    for line in f.readlines():
-        temp.append(line.strip().split())
-
-
-# %%
-for i in range(10, 1, -1):
-    print(i)

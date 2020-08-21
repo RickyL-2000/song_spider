@@ -9,8 +9,6 @@ if __name__ == "__main__":
 
 设备：手头上的华为
 
-1. 先通过search request获取该歌曲的列表，用rfind方法找到该歌手的isongmid
-2.
 """
 
 # %%
