@@ -7,6 +7,7 @@ import json
 import codecs
 import time
 import re
+import subprocess
 
 # %%
 def load_pitch():
@@ -190,20 +191,43 @@ def mkdir(path):
 
 # %%
 def execCmd(cmd):
-    r = os.popen(cmd)
-    text = r.read()
-    r.close()
-    return text
+    """
+    :return: (stdout, stderr=None)
+    """
+    # r = os.popen(cmd)
+    # text = r.read()
+    # r.close()
+    # return text
+    r = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    ret = r.communicate()
+    r.stdout.close()
+    return ret
 
 # %%
 def getSongLen(path):
     """
     :return: 返回 microseconds
     """
-    info = execCmd("ffmpeg -i " + path)
-    pattern = re.compile("Duration: (.*?):(.*?):(.*?), start")
-    matcher = pattern.match(info)
-    return int(float(matcher.group(0)) * 3600000 + float(matcher.group(1)) * 60000 + float(matcher.group(2)) * 1000)
+    info = execCmd("ffprobe " + path)
+    # pattern = re.compile("Duration: (.*?):(.*?):(.*?), start")
+    # matcher = pattern.match(info[0].decode())
+    text = info[0].decode()
+    time_str = text[text.find("Duration") + 10: text.find(", start")]
+    length = time2sec(time_str)
+    return length * 1000
+
+# %%
+def time2sec(time_str):
+    start = 0
+    end = time_str.find(':')
+    ret = int(time_str[start: end]) * 3600
+    start = end + 1
+    end = time_str.find(':', start)
+    ret += int(time_str[start: end]) * 60
+    start = end + 1
+    ret = float(time_str[start:]) + float(ret)
+    return ret
+
 
 # %%
 def song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=500):
@@ -221,23 +245,23 @@ def song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=500):
             # y, sr = librosa.load(base_dir + "/audios/raw_audios/" + file_name)
 
             # 创建新目录
-            mkdir(base_dir + '/audios/phrases/{}({})'.format(song_idx, i))
+            mkdir(base_dir + '/audios/phrases/"{}({})"'.format(song_idx, i))
 
             for j in range(len(song_qrc)):
                 duration = song_qrc[j][0]
                 # 获取音频时长
-                length = getSongLen(base_dir + "/audios/raw_audios/" + file_name)
+                length = getSongLen(base_dir + '/audios/raw_audios/"' + file_name + '"')
 
                 # 分割
                 start_time = max(duration[0] - threshold, 0)
                 end_time = min(duration[1] + threshold, length)
                 cmd = 'ffmpeg -i {} -ss 00:{}:{} -t 00:{}:{} {}'.format(
-                    base_dir + 'audios/raw_audios/' + file_name,
+                    base_dir + '/audios/raw_audios/"' + file_name + '"',
                     start_time // 60000,
                     start_time % 60000 // 1000,
                     end_time // 60000,
                     end_time % 60000 // 1000,
-                    base_dir + '/audios/phrases/{}({})/{}.mp3'.format(song_idx, i, j)
+                    base_dir + '/audios/phrases/"{}({})"/{}.mp3'.format(song_idx, i, j)
                 )
                 ret = execCmd(cmd)
 
@@ -269,14 +293,34 @@ def main(all_data_num, start_point=0):
 def test():
     song_idx = 2
     song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=500)
+    # file_name = r"2(1).mp3"
+    # length = getSongLen(base_dir + '/audios/raw_audios/"' + file_name + '"')
+    # print(length)
+
 
 # %%
-base_dir = os.getcwd()
+if __name__ == "__main__":
+    pass
+
+# %%
+base_dir = '/home1/renyi/ry/lrq'
 all_data_num = 72898
 all_qrc = load_qrc()
 all_pitch = load_pitch()
 all_grouped_pitch = pitch_grouping(all_pitch, all_qrc, all_data_num, threshold=250)
 
 # %%
-test()
+# test()
 # main(all_data_num, start_point=0)
+
+# %%
+# trytrywater
+# file_name = r"2(1).mp3"
+# path = base_dir + '/audios/raw_audios/"' + file_name + '"'
+# cmd = "ffprobe " + path
+# r = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+# ret = r.communicate()
+# r.stdout.close()
+# text = ret[0].decode()
+# time_str = text[text.find("Duration") + 10: text.find(", start")]
+# length = time2sec(time_str)
