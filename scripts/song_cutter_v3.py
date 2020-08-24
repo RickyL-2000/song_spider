@@ -1,12 +1,12 @@
 # %%
-# 此为用pydub进行音频解析与分割的版本
+# 此为用原生ffmpeg命令进行解析的裁剪脚本
 
 # %%
 import os
 import json
 import codecs
 import time
-from pydub import AudioSegment
+import re
 
 # %%
 def load_pitch():
@@ -189,6 +189,23 @@ def mkdir(path):
     return path
 
 # %%
+def execCmd(cmd):
+    r = os.popen(cmd)
+    text = r.read()
+    r.close()
+    return text
+
+# %%
+def getSongLen(path):
+    """
+    :return: 返回 microseconds
+    """
+    info = execCmd("ffmpeg -i " + path)
+    pattern = re.compile("Duration: (.*?):(.*?):(.*?), start")
+    matcher = pattern.match(info)
+    return int(float(matcher.group(0)) * 3600000 + float(matcher.group(1)) * 60000 + float(matcher.group(2)) * 1000)
+
+# %%
 def song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=500):
     song_qrc = all_qrc[song_idx]
     song_pitch = all_grouped_pitch[song_idx]
@@ -199,38 +216,49 @@ def song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=500):
     for i in range(1, 3):
         file_name = r"{}({}).mp3".format(song_idx, i)
         if os.path.exists(base_dir + "/audios/raw_audios/" + file_name):
-            try:
-                input_song = AudioSegment.from_mp3(base_dir + "/audios/raw_audios/" + file_name)
+            # try:
+            # input_song = AudioSegment.from_mp3(base_dir + "/audios/raw_audios/" + file_name)
+            # y, sr = librosa.load(base_dir + "/audios/raw_audios/" + file_name)
 
-                # 创建新目录
-                mkdir(base_dir + '/audios/phrases/{}({})'.format(song_idx, i))
+            # 创建新目录
+            mkdir(base_dir + '/audios/phrases/{}({})'.format(song_idx, i))
 
-                for j in range(len(song_qrc)):
-                    duration = song_qrc[j][0]
-                    output_segment = \
-                        input_song[max(duration[0] - threshold, 0): min(duration[1] + threshold, len(input_song))]
+            for j in range(len(song_qrc)):
+                duration = song_qrc[j][0]
+                # 获取音频时长
+                length = getSongLen(base_dir + "/audios/raw_audios/" + file_name)
 
-                    # 存音频
-                    output_segment.export(base_dir + '/audios/phrases/{}({})/{}.mp3'.format(song_idx, i, j), format="mp3")
+                # 分割
+                start_time = max(duration[0] - threshold, 0)
+                end_time = min(duration[1] + threshold, length)
+                cmd = 'ffmpeg -i {} -ss 00:{}:{} -t 00:{}:{} {}'.format(
+                    base_dir + 'audios/raw_audios/' + file_name,
+                    start_time // 60000,
+                    start_time % 60000 // 1000,
+                    end_time // 60000,
+                    end_time % 60000 // 1000,
+                    base_dir + '/audios/phrases/{}({})/{}.mp3'.format(song_idx, i, j)
+                )
+                ret = execCmd(cmd)
 
-                    # 存歌词和音符
-                    content = {
-                        'duration': [max(duration[0] - threshold, 0), min(duration[1] + threshold, len(input_song))],
-                        'qrc': {
-                            'seq': song_qrc[j][1],
-                            'phrase': song_qrc[j][2]
-                        },
-                        'pitch': song_pitch[j]
-                    }
-                    with open(base_dir + '/audios/phrases/{}({})/{}.json'.format(song_idx, i, j),
-                              'w', encoding='utf-8') as f:
-                        json.dump(content, f)
+                # 存歌词和音符
+                content = {
+                    'duration': [max(duration[0] - threshold, 0), min(duration[1] + threshold, length)],
+                    'qrc': {
+                        'seq': song_qrc[j][1],
+                        'phrase': song_qrc[j][2]
+                    },
+                    'pitch': song_pitch[j]
+                }
+                with open(base_dir + '/audios/phrases/{}({})/{}.json'.format(song_idx, i, j),
+                          'w', encoding='utf-8') as f:
+                    json.dump(content, f)
 
-                print("{}({}).mp3 --- successfully processed".format(song_idx, i), end='  ')
-                print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-            except:
-                print("{}({}).mp3 --- processing failed".format(song_idx, i), end='  ')
-                print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+            print("{}({}).mp3 --- successfully processed".format(song_idx, i), end='  ')
+            print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+            # except:
+            #     print("{}({}).mp3 --- processing failed".format(song_idx, i), end='  ')
+            #     print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
 
 # %%
 def main(all_data_num, start_point=0):

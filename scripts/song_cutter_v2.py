@@ -1,12 +1,13 @@
 # %%
-# 此为用pydub进行音频解析与分割的版本
+# 此为用librosa进行解析的裁剪脚本
 
 # %%
 import os
 import json
 import codecs
 import time
-from pydub import AudioSegment
+import librosa
+import soundfile as sf
 
 # %%
 def load_pitch():
@@ -200,22 +201,25 @@ def song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=500):
         file_name = r"{}({}).mp3".format(song_idx, i)
         if os.path.exists(base_dir + "/audios/raw_audios/" + file_name):
             try:
-                input_song = AudioSegment.from_mp3(base_dir + "/audios/raw_audios/" + file_name)
+                # input_song = AudioSegment.from_mp3(base_dir + "/audios/raw_audios/" + file_name)
+                y, sr = librosa.load(base_dir + "/audios/raw_audios/" + file_name)
 
                 # 创建新目录
                 mkdir(base_dir + '/audios/phrases/{}({})'.format(song_idx, i))
 
                 for j in range(len(song_qrc)):
                     duration = song_qrc[j][0]
-                    output_segment = \
-                        input_song[max(duration[0] - threshold, 0): min(duration[1] + threshold, len(input_song))]
+                    y_out = \
+                        y[max((duration[0] - threshold) * sr // 1000, 0):
+                          min((duration[1] + threshold) * sr // 1000, len(y))]
 
                     # 存音频
-                    output_segment.export(base_dir + '/audios/phrases/{}({})/{}.mp3'.format(song_idx, i, j), format="mp3")
+                    # output_segment.export(base_dir + '/audios/phrases/{}({})/{}.mp3'.format(song_idx, i, j), format="mp3")
+                    sf.write(base_dir + '/audios/phrases/{}({})/{}.wav', y_out, sr, subtype='PCM_24')
 
                     # 存歌词和音符
                     content = {
-                        'duration': [max(duration[0] - threshold, 0), min(duration[1] + threshold, len(input_song))],
+                        'duration': [max(duration[0] - threshold, 0), min(duration[1] + threshold, len(y) * 1000 // sr)],
                         'qrc': {
                             'seq': song_qrc[j][1],
                             'phrase': song_qrc[j][2]
