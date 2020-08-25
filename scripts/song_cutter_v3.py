@@ -22,7 +22,7 @@ def load_pitch():
         _ = 0
         for line in f.readlines():
             _ += 1
-            if _ % 100 == 0:
+            if _ % 2000 == 0:
                 print(_)
             if line[:len(codecs.BOM_UTF8)] == codecs.BOM_UTF8:
                 line = line[codecs.BOM_UTF8:]
@@ -60,7 +60,7 @@ def pitch_grouping(all_pitch, all_qrc, all_data_num, threshold=250):
     print("grouping pitch...")
     for k in range(1, all_data_num):
         _ += 1
-        if _ % 100 == 0:
+        if _ % 2000 == 0:
             print(_)
         song_qrc = all_qrc[k]
         song_pitch = all_pitch[k]
@@ -134,7 +134,7 @@ def load_qrc():
         print("loading qrc...")
         for line in f.readlines():
             _ += 1
-            if _ % 100 == 0:
+            if _ % 2000 == 0:
                 print(_)
             if line[:len(codecs.BOM_UTF8)] == codecs.BOM_UTF8:
                 line = line[codecs.BOM_UTF8:]
@@ -240,59 +240,66 @@ def song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=500):
     for i in range(1, 3):
         file_name = r"{}({}).mp3".format(song_idx, i)
         if os.path.exists(base_dir + "/audios/raw_audios/" + file_name):
-            # try:
-            # input_song = AudioSegment.from_mp3(base_dir + "/audios/raw_audios/" + file_name)
-            # y, sr = librosa.load(base_dir + "/audios/raw_audios/" + file_name)
+            try:
+                # 创建新目录
+                mkdir(base_dir + '/audios/phrases/{}({})'.format(song_idx, i))
 
-            # 创建新目录
-            mkdir(base_dir + '/audios/phrases/"{}({})"'.format(song_idx, i))
-
-            for j in range(len(song_qrc)):
-                duration = song_qrc[j][0]
                 # 获取音频时长
-                length = getSongLen(base_dir + '/audios/raw_audios/"' + file_name + '"')
+                song_length = getSongLen(base_dir + '/audios/raw_audios/"' + file_name + '"')
 
-                # 分割
-                start_time = max(duration[0] - threshold, 0)
-                end_time = min(duration[1] + threshold, length)
-                cmd = 'ffmpeg -i {} -ss 00:{}:{} -t 00:{}:{} {}'.format(
-                    base_dir + '/audios/raw_audios/"' + file_name + '"',
-                    start_time // 60000,
-                    start_time % 60000 // 1000,
-                    end_time // 60000,
-                    end_time % 60000 // 1000,
-                    base_dir + '/audios/phrases/"{}({})"/{}.mp3'.format(song_idx, i, j)
-                )
-                ret = execCmd(cmd)
+                # 查看是否为有效音频
+                # print("check validation")
+                assert song_length >= song_pitch[-1][-1][0] + song_pitch[-1][-1][1] - song_pitch[0][0][0]
+                # print("check validation done")
 
-                # 存歌词和音符
-                content = {
-                    'duration': [max(duration[0] - threshold, 0), min(duration[1] + threshold, length)],
-                    'qrc': {
-                        'seq': song_qrc[j][1],
-                        'phrase': song_qrc[j][2]
-                    },
-                    'pitch': song_pitch[j]
-                }
-                with open(base_dir + '/audios/phrases/{}({})/{}.json'.format(song_idx, i, j),
-                          'w', encoding='utf-8') as f:
-                    json.dump(content, f)
+                for j in range(len(song_qrc)):
+                    duration = song_qrc[j][0]
 
-            print("{}({}).mp3 --- successfully processed".format(song_idx, i), end='  ')
-            print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-            # except:
-            #     print("{}({}).mp3 --- processing failed".format(song_idx, i), end='  ')
-            #     print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                    # 分割
+                    start_time = max(duration[0] - threshold, 0)
+                    end_time = min(duration[1] + threshold, song_length)
+                    last_time = end_time - start_time
+                    cmd = 'ffmpeg -i {} -ss 00:{:02d}:{:02.2f} -t 00:{:02d}:{:02.2f} {}'.format(
+                        base_dir + '/audios/raw_audios/"' + file_name + '"',
+                        start_time // 60000,
+                        start_time % 60000 / 1000,
+                        last_time // 60000,
+                        last_time % 60000 / 1000,
+                        base_dir + '/audios/phrases/"{}({})"/{}.mp3'.format(song_idx, i, j)
+                    )
+                    ret = execCmd(cmd)
+                    if ret[1] is not None:
+                        continue
+
+                    # 存歌词和音符
+                    content = {
+                        'duration': [max(duration[0] - threshold, 0), min(duration[1] + threshold, song_length)],
+                        'qrc': {
+                            'seq': song_qrc[j][1],
+                            'phrase': song_qrc[j][2]
+                        },
+                        'pitch': song_pitch[j]
+                    }
+                    with open(base_dir + '/audios/phrases/{}({})/{}.json'.format(song_idx, i, j),
+                              'w', encoding='utf-8') as f:
+                        json.dump(content, f)
+
+                print("{}({}).mp3 --- successfully processed".format(song_idx, i), end='  ')
+                print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+
+            except:
+                print("{}({}).mp3 --- processing failed".format(song_idx, i), end='  ')
+                print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
 
 # %%
 def main(all_data_num, start_point=0):
     for song_idx in range(start_point, all_data_num):
-        song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=500)
+        song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=300)
 
 # %%
 def test():
     song_idx = 2
-    song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=500)
+    song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=300)
     # file_name = r"2(1).mp3"
     # length = getSongLen(base_dir + '/audios/raw_audios/"' + file_name + '"')
     # print(length)
@@ -310,17 +317,34 @@ all_pitch = load_pitch()
 all_grouped_pitch = pitch_grouping(all_pitch, all_qrc, all_data_num, threshold=250)
 
 # %%
-# test()
-# main(all_data_num, start_point=0)
+test()
+# main(all_data_num, start_point=3)
 
 # %%
 # trytrywater
-# file_name = r"2(1).mp3"
-# path = base_dir + '/audios/raw_audios/"' + file_name + '"'
-# cmd = "ffprobe " + path
-# r = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-# ret = r.communicate()
-# r.stdout.close()
-# text = ret[0].decode()
-# time_str = text[text.find("Duration") + 10: text.find(", start")]
-# length = time2sec(time_str)
+"""
+threshold = 300
+song_idx = 2
+song_qrc = all_qrc[song_idx]
+file_name = r"{}({}).mp3".format(song_idx, 1)
+song_pitch = all_grouped_pitch[song_idx]
+mkdir(base_dir + '/audios/phrases/{}({})'.format(song_idx, 1))
+
+i = 1
+j = 0
+duration = song_qrc[j][0]
+length = getSongLen(base_dir + '/audios/raw_audios/"' + file_name + '"')
+start_time = max(duration[0] - threshold, 0)
+end_time = min(duration[1] + threshold, length)
+last_time = end_time - start_time
+cmd = 'ffmpeg -i {} -ss 00:{:02d}:{:02.2f} -t 00:{:02d}:{:02.2f} {}'.format(
+    base_dir + '/audios/raw_audios/"' + file_name + '"',
+    start_time // 60000,
+    start_time % 60000 / 1000,
+    last_time // 60000,
+    last_time % 60000 / 1000,
+    base_dir + '/audios/phrases/"{}({})"/{}.mp3'.format(song_idx, i, j)
+)
+
+ret = execCmd(cmd)
+"""
