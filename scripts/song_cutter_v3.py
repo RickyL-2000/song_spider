@@ -8,6 +8,7 @@ import codecs
 import time
 import re
 import subprocess
+import threading
 
 # %%
 def load_pitch():
@@ -22,7 +23,7 @@ def load_pitch():
         _ = 0
         for line in f.readlines():
             _ += 1
-            if _ % 2000 == 0:
+            if _ % 5000 == 0:
                 print(_)
             if line[:len(codecs.BOM_UTF8)] == codecs.BOM_UTF8:
                 line = line[codecs.BOM_UTF8:]
@@ -60,7 +61,7 @@ def pitch_grouping(all_pitch, all_qrc, all_data_num, threshold=250):
     print("grouping pitch...")
     for k in range(1, all_data_num):
         _ += 1
-        if _ % 2000 == 0:
+        if _ % 5000 == 0:
             print(_)
         song_qrc = all_qrc[k]
         song_pitch = all_pitch[k]
@@ -134,7 +135,7 @@ def load_qrc():
         print("loading qrc...")
         for line in f.readlines():
             _ += 1
-            if _ % 2000 == 0:
+            if _ % 5000 == 0:
                 print(_)
             if line[:len(codecs.BOM_UTF8)] == codecs.BOM_UTF8:
                 line = line[codecs.BOM_UTF8:]
@@ -292,9 +293,37 @@ def song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=500):
                 print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
 
 # %%
-def main(all_data_num, start_point=0):
+def main(all_qrc, all_grouped_pitch, all_data_num, base_dir, start_point=0):
     for song_idx in range(start_point, all_data_num):
         song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=300)
+
+# %%
+def main_threaded(all_qrc, all_grouped_pitch, all_data_num, base_dir, start_point=0, max_threads=10):
+    # 先生成queue
+    song_idx_queue = [idx for idx in range(all_data_num-1, start_point-1, -1)]
+
+    def process_queue():
+        # 弹出queue
+        # 调用cutter
+        while True:
+            try:
+                song_idx = song_idx_queue.pop()
+            except IndexError:
+                break
+
+            song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=300)
+
+    threads = []
+    while threads or song_idx_queue:
+        for thread in threads:
+            if not thread.is_alive():
+                threads.remove(thread)
+        while len(threads) < max_threads and song_idx_queue:
+            thread = threading.Thread(target=process_queue)
+            thread.setDaemon(True)
+            thread.start()
+            threads.append(thread)
+        time.sleep(1)
 
 # %%
 def test():
@@ -307,18 +336,15 @@ def test():
 
 # %%
 if __name__ == "__main__":
-    pass
+    base_dir = '/home1/renyi/ry/lrq'
+    all_data_num = 72898
+    all_qrc = load_qrc()
+    all_pitch = load_pitch()
+    all_grouped_pitch = pitch_grouping(all_pitch, all_qrc, all_data_num, threshold=250)
 
-# %%
-base_dir = '/home1/renyi/ry/lrq'
-all_data_num = 72898
-all_qrc = load_qrc()
-all_pitch = load_pitch()
-all_grouped_pitch = pitch_grouping(all_pitch, all_qrc, all_data_num, threshold=250)
-
-# %%
-test()
-# main(all_data_num, start_point=3)
+    # test()
+    # main(all_qrc, all_grouped_pitch, all_data_num, base_dir, start_point=8)
+    main_threaded(all_qrc, all_grouped_pitch, all_data_num, base_dir, start_point=1040, max_threads=5)
 
 # %%
 # trytrywater
