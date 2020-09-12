@@ -23,7 +23,7 @@ def load_pitch():
         _ = 0
         for line in f.readlines():
             _ += 1
-            if _ % 5000 == 0:
+            if _ % 10000 == 0:
                 print(_)
             if line[:len(codecs.BOM_UTF8)] == codecs.BOM_UTF8:
                 line = line[codecs.BOM_UTF8:]
@@ -61,7 +61,7 @@ def pitch_grouping(all_pitch, all_qrc, all_data_num, threshold=250):
     print("grouping pitch...")
     for k in range(1, all_data_num):
         _ += 1
-        if _ % 5000 == 0:
+        if _ % 10000 == 0:
             print(_)
         song_qrc = all_qrc[k]
         song_pitch = all_pitch[k]
@@ -135,7 +135,7 @@ def load_qrc():
         print("loading qrc...")
         for line in f.readlines():
             _ += 1
-            if _ % 5000 == 0:
+            if _ % 10000 == 0:
                 print(_)
             if line[:len(codecs.BOM_UTF8)] == codecs.BOM_UTF8:
                 line = line[codecs.BOM_UTF8:]
@@ -182,6 +182,38 @@ def load_qrc():
             all_qrc.append(song_qrc)
 
     return all_qrc
+
+# %%
+def load_song_cut_log(all_data_num, base_dir, from_audio=True):
+    if from_audio:
+        # song_cut_log = [[0, 0, 0]] * (all_data_num + 1)   # 不能这样！这样每个[0, 0, 0]会互相镜像！
+        song_cut_log = [[0, 0, 0] for _ in range(all_data_num + 1)]
+        dir_prefix = base_dir + "/audios/phrases"
+        print("loading song_cut_log...")
+        for i in range(1, all_data_num + 1):
+            if i % 10000 == 0:
+                print(i)
+            for j in range(1, 4):
+                if os.path.exists(dir_prefix + '/{}({})'.format(i, j)):
+                    song_cut_log[i][j-1] = 1
+        return song_cut_log
+    else:
+        with open(base_dir + "/helpers/song_cut_log.txt", "r", encoding="utf-8") as f:
+            # song_cut_log = [[0, 0, 0]] * (all_data_num + 1)   # 不能这样！这样每个[0, 0, 0]会互相镜像！
+            song_cut_log = [[0, 0, 0] for _ in range(all_data_num + 1)]
+            for i, line in enumerate(f.readlines()):
+                tmp = line.strip().split()
+                for j in range(len(tmp)):
+                    song_cut_log[i+1][j] = int(tmp[j])
+        return song_cut_log
+
+# %%
+def write_song_cut_log(song_cut_log, all_data_num, base_dir):
+    assert len(song_cut_log) == all_data_num + 1
+    with open(base_dir + "/helpers/song_cut_log.txt", "w", encoding="utf-8") as f:
+        for i in range(1, all_data_num + 1):
+            f.write("{} {} {}\n".format(song_cut_log[i][0], song_cut_log[i][1], song_cut_log[i][2]))
+
 
 # %%
 def mkdir(path):
@@ -231,14 +263,18 @@ def time2sec(time_str):
 
 
 # %%
-def song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=500):
+def song_cut(song_idx, all_qrc, all_grouped_pitch, song_cut_log, base_dir, threshold=500):
     song_qrc = all_qrc[song_idx]
     song_pitch = all_grouped_pitch[song_idx]
     if song_qrc is None or song_pitch is None:
         print("{}.mp3 --- loading failed".format(song_idx), end='  ')
         print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
         return
-    for i in range(1, 3):
+    # for i in range(1, 4):     TODO: debug
+    for i in range(3, 4):
+        if song_cut_log[song_idx][i-1]:
+            # check if this song has been processed
+            continue
         file_name = r"{}({}).mp3".format(song_idx, i)
         if os.path.exists(base_dir + "/audios/raw_audios/" + file_name):
             try:
@@ -287,20 +323,22 @@ def song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=500):
 
                 print("{}({}).mp3 --- successfully processed".format(song_idx, i), end='  ')
                 print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                time.sleep(0.1)
 
             except:
                 print("{}({}).mp3 --- processing failed".format(song_idx, i), end='  ')
                 print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                time.sleep(0.1)
 
 # %%
-def main(all_qrc, all_grouped_pitch, all_data_num, base_dir, start_point=0):
+def main(all_qrc, all_grouped_pitch, song_cut_log, all_data_num, base_dir, start_point=1):
     for song_idx in range(start_point, all_data_num):
-        song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=300)
+        song_cut(song_idx, all_qrc, all_grouped_pitch, song_cut_log, base_dir, threshold=300)
 
 # %%
-def main_threaded(all_qrc, all_grouped_pitch, all_data_num, base_dir, start_point=0, max_threads=10):
+def main_threaded(all_qrc, all_grouped_pitch, song_cut_log, all_data_num, base_dir, start_point=1, max_threads=10):
     # 先生成queue
-    song_idx_queue = [idx for idx in range(all_data_num-1, start_point-1, -1)]
+    song_idx_queue = [idx for idx in range(all_data_num, start_point, -1)]
 
     def process_queue():
         # 弹出queue
@@ -311,7 +349,7 @@ def main_threaded(all_qrc, all_grouped_pitch, all_data_num, base_dir, start_poin
             except IndexError:
                 break
 
-            song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=300)
+            song_cut(song_idx, all_qrc, all_grouped_pitch, song_cut_log, base_dir, threshold=300)
 
     threads = []
     while threads or song_idx_queue:
@@ -328,7 +366,7 @@ def main_threaded(all_qrc, all_grouped_pitch, all_data_num, base_dir, start_poin
 # %%
 def test():
     song_idx = 2
-    song_cut(song_idx, all_qrc, all_grouped_pitch, base_dir, threshold=300)
+    song_cut(song_idx, all_qrc, all_grouped_pitch, song_cut_log, base_dir, threshold=300)
     # file_name = r"2(1).mp3"
     # length = getSongLen(base_dir + '/audios/raw_audios/"' + file_name + '"')
     # print(length)
@@ -336,15 +374,17 @@ def test():
 
 # %%
 if __name__ == "__main__":
-    base_dir = '/home1/renyi/ry/lrq'
+    base_dir = '/home/renyi/ry/lrq'
     all_data_num = 72898
     all_qrc = load_qrc()
     all_pitch = load_pitch()
     all_grouped_pitch = pitch_grouping(all_pitch, all_qrc, all_data_num, threshold=250)
 
+    song_cut_log = load_song_cut_log(all_data_num, base_dir, from_audio=True)
+
     # test()
     # main(all_qrc, all_grouped_pitch, all_data_num, base_dir, start_point=8)
-    main_threaded(all_qrc, all_grouped_pitch, all_data_num, base_dir, start_point=1040, max_threads=5)
+    main_threaded(all_qrc, all_grouped_pitch, song_cut_log, all_data_num, base_dir, start_point=44800, max_threads=20)
 
 # %%
 # trytrywater
