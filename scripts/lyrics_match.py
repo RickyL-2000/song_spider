@@ -39,6 +39,9 @@ class LyricsMatch:
             self.qrc = []                   # 这是处理拉伸后的歌词，与audio匹配，格式与raw相同
             self.grouped_pitch = []         # 这是处理拉伸后的分组乐谱
 
+            self.y = []                     # audio的时间序列
+            self.sr = 0                     # audio的采样率
+
             self.f0 = []                    # 音频的基频曲线
             self.t = []                     # 音频的基频的时间序列
                                             # 默认 5ms 为间隔。如果要修改该间隔，需要修改：stretch
@@ -146,16 +149,15 @@ class LyricsMatch:
             self.grouped_pitch = copy.deepcopy(self.grouped_raw_pitch)
 
         def load_f0(self):
-            y, fs = self.read_wav()
-            self.f0, self.t = self.extract_f0(y, fs)
+            self.read_wav()
+            self.f0, self.t = self.extract_f0(self.y, self.sr)
             # 中值滤波：参数=3
             self.f0 = signal.medfilt(self.f0, 5)
 
         def read_wav(self):
             # 还是在test阶段
-            y, fs = librosa.load(self.base_dir + r"/audios/separate/{}/vocals.wav".format(self.number), dtype=float,
-                                 sr=None)
-            return y, fs
+            self.y, self.sr = librosa.load(self.base_dir + r"/audios/separate/{}/vocals.wav".format(self.number),
+                                           dtype=float, sr=None)
 
         @staticmethod
         def extract_f0(y, fs):
@@ -306,12 +308,24 @@ class LyricsMatch:
                 # 截取 f0 audio
                 candidate = self.f0[lrc_start // 5: cursor // 5]
 
+                # plot短时过零率
+                crossing_r = librosa.feature.zero_crossing_rate(self.y[int(lrc_start / 5 / len(self.f0) * len(self.y)):
+                                                                       int(cursor / 5 / len(self.f0) * len(self.y))])[0]
+                x = np.linspace(lrc_start / 1000, cursor / 1000, len(crossing_r))
+                plt.plot(x, crossing_r * 100, label='crossing rate')
+                plt.plot(self.t[lrc_start // 5: cursor // 5], self.f0[lrc_start // 5: cursor // 5], label='f0')
+                plt.legend()
+                plt.show()
+
                 distance = self.get_distance(notes_list[:, 1], candidate)
                 if distance < min_distance:
                     min_distance = distance
                     min_pos = cursor // 5 * 5 - 5  # cursor 位置不包含
                 cursor -= 100
             lrc_end = min_pos  # lrc结束时间，单位ms
+
+            # 画出最短距离的dtw矩阵
+            self.plot_alignment(notes_list[:, 1], self.f0[lrc_start // 5: min_pos // 5])
 
             # 开始拉伸歌词
             stretch_rate = (lrc_end - lrc_start) / (qrc_end - qrc_start)
